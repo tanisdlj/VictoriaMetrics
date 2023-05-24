@@ -86,7 +86,7 @@ package-docker-image: \
 		bin
 
 publish-via-docker: package-docker-image
-	@if [ "${CI}" == "true" ]; then \
+	@if [ "$(CI)" = "true" ]; then \
 		snyk container test $(DOCKER_NAMESPACE)/$(APP_NAME):$(PKG_TAG) --org=${SNYK_ORG_ID} --file=app/$(APP_NAME)/multiarch/Dockerfile --sarif-file-output=snyk$(APP_NAME).sarif ; \
 	fi
 	docker buildx build \
