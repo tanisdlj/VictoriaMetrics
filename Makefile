@@ -4,6 +4,7 @@ DATEINFO_TAG ?= $(shell date -u +'%Y%m%d-%H%M%S')
 BUILDINFO_TAG ?= $(shell echo $$(git describe --long --all | tr '/' '-')$$( \
 	      git diff-index --quiet HEAD -- || echo '-dirty-'$$(git diff-index -u HEAD | openssl sha1 | cut -d' ' -f2 | cut -c 1-8)))
 LATEST_TAG ?= latest
+CI ?= false
 
 PKG_TAG ?= $(shell git tag -l --points-at HEAD)
 ifeq ($(PKG_TAG),)
@@ -31,7 +32,7 @@ all: \
 clean:
 	rm -rf bin/*
 
-publish: docker-scan \
+publish: \
 	publish-victoria-metrics \
 	publish-vmagent \
 	publish-vmalert \
@@ -41,6 +42,15 @@ publish: docker-scan \
 	publish-vmctl
 
 package: \
+	package-victoria-metrics \
+	package-vmagent \
+	package-vmalert \
+	package-vmauth \
+	package-vmbackup \
+	package-vmrestore \
+	package-vmctl
+
+build-docker: \
 	package-victoria-metrics \
 	package-vmagent \
 	package-vmalert \

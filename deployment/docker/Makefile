@@ -22,9 +22,6 @@ package-base:
 			--tag $(BASE_IMAGE) \
 			deployment/docker/base
 
-docker-scan: package-base
-	docker scan --severity=medium --accept-license $(BASE_IMAGE) || (echo "❌ The build has been terminated because critical vulnerabilities were found in $(BASE_IMAGE)"; exit 1)
-
 package-builder:
 	(docker image ls --format '{{.Repository}}:{{.Tag}}' | grep -q '$(BUILDER_IMAGE)$$') \
 		|| docker build \
@@ -71,7 +68,7 @@ package-via-docker: package-base
 			--tag $(DOCKER_NAMESPACE)/$(APP_NAME):$(PKG_TAG)$(APP_SUFFIX)$(RACE) \
 			-f app/$(APP_NAME)/deployment/Dockerfile bin)
 
-publish-via-docker: \
+package-docker-image: \
 	app-via-docker-linux-amd64 \
 	app-via-docker-linux-arm \
 	app-via-docker-linux-arm64 \
@@ -86,8 +83,16 @@ publish-via-docker: \
 		--tag $(DOCKER_NAMESPACE)/$(APP_NAME):$(LATEST_TAG)$(RACE) \
 		-o type=image \
 		-f app/$(APP_NAME)/multiarch/Dockerfile \
-		--push \
 		bin
+
+publish-via-docker: package-docker-image
+	@if [ ${CI} == "true" ]; then \
+		snyk container test $(DOCKER_NAMESPACE)/$(APP_NAME):$(PKG_TAG) --org=${SNYK_ORG_ID} --file=app/$(APP_NAME)/multiarch/Dockerfile --sarif-file-output=snyk$(APP_NAME).sarif ; \
+	fi
+	docker manifest push \
+		$(DOCKER_NAMESPACE)/$(APP_NAME):$(PKG_TAG)$(RACE)
+	docker manifest push \
+		$(DOCKER_NAMESPACE)/$(APP_NAME):$(LATEST_TAG)$(RACE)
 
 run-via-docker: package-via-docker
 	docker run -it --rm \

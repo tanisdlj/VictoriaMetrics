@@ -3,6 +3,9 @@ on:
   schedule:
     # Daily at 2:48am
     - cron: '48 2 * * *'
+  push:
+    branches:
+      - update-vulnerability-scan
 
 permissions:
   contents: read
@@ -23,12 +26,6 @@ jobs:
           go-version: 1.20.4
         id: go
 
-      - name: Setup docker scan
-        run: |
-          mkdir -p ~/.docker/cli-plugins && \
-          curl https://github.com/docker/scan-cli-plugin/releases/latest/download/docker-scan_linux_amd64 -L -s -S -o ~/.docker/cli-plugins/docker-scan &&\
-          chmod +x ~/.docker/cli-plugins/docker-scan
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
       
@@ -40,9 +37,18 @@ jobs:
           path: gocache-for-docker
           key: gocache-docker-${{ runner.os }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('go.mod') }}
 
+      - name: setup snyk
+        uses: snyk/actions/setup@master
+
       - name: build & publish
         run: |
-          docker scan --severity=medium --login --token "$SNYK_TOKEN" --accept-license
           LATEST_TAG=nightly PKG_TAG=nightly make publish
         env: 
-          SNYK_TOKEN: ${{ secrets.SNYK_AUTH_TOKEN }}
+          SNYK_ORG_ID: ${{ secrets.SNYK_ORG_ID }}
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Upload result to GitHub Code Scanning
+        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ./snyk
