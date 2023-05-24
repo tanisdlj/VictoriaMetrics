@@ -89,10 +89,17 @@ publish-via-docker: package-docker-image
 	@if [ "${CI}" == "true" ]; then \
 		snyk container test $(DOCKER_NAMESPACE)/$(APP_NAME):$(PKG_TAG) --org=${SNYK_ORG_ID} --file=app/$(APP_NAME)/multiarch/Dockerfile --sarif-file-output=snyk$(APP_NAME).sarif ; \
 	fi
-	docker manifest push \
-		$(DOCKER_NAMESPACE)/$(APP_NAME):$(PKG_TAG)$(RACE)
-	docker manifest push \
-		$(DOCKER_NAMESPACE)/$(APP_NAME):$(LATEST_TAG)$(RACE)
+	docker buildx build \
+		--platform=linux/amd64,linux/arm,linux/arm64,linux/ppc64le,linux/386 \
+		--build-arg certs_image=$(CERTS_IMAGE) \
+		--build-arg root_image=$(ROOT_IMAGE) \
+		--build-arg APP_NAME=$(APP_NAME) \
+		--tag $(DOCKER_NAMESPACE)/$(APP_NAME):$(PKG_TAG)$(RACE) \
+		--tag $(DOCKER_NAMESPACE)/$(APP_NAME):$(LATEST_TAG)$(RACE) \
+		-o type=image \
+		--push \
+		-f app/$(APP_NAME)/multiarch/Dockerfile \
+		bin
 
 run-via-docker: package-via-docker
 	docker run -it --rm \
