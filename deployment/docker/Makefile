@@ -87,7 +87,8 @@ package-docker-image: \
 
 publish-via-docker: package-docker-image
 	@if [ "$(CI)" = "true" ]; then \
-		snyk container test $(DOCKER_NAMESPACE)/$(APP_NAME):$(PKG_TAG) --org=${SNYK_ORG_ID} --file=app/$(APP_NAME)/multiarch/Dockerfile --sarif-file-output=snyk$(APP_NAME).sarif ; \
+		mkdir -p snyk ; \
+		snyk container test $(DOCKER_NAMESPACE)/$(APP_NAME):$(PKG_TAG) --org=${SNYK_ORG_ID} --file=app/$(APP_NAME)/multiarch/Dockerfile --sarif-file-output=snyk/$(APP_NAME).sarif ; \
 	fi
 	docker buildx build \
 		--platform=linux/amd64,linux/arm,linux/arm64,linux/ppc64le,linux/386 \
