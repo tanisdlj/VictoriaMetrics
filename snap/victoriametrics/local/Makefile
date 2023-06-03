@@ -10,7 +10,7 @@ snap-builder-image:
 	|| docker build \
 		--build-arg GO_VERSION=$(GO_VERSION) \
 		--tag $(SNAP_BUILDER_IMAGE) \
-		snap/local
+		snap/victoriametrics/local
 
 build-snap: snap-builder-image
 	docker run --rm \
