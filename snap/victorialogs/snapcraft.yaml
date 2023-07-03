@@ -1,0 +1,55 @@
+name: victorialogs
+base: core18
+adopt-info: build
+icon: logo.png
+summary: The Simple & Reliable Logs Solution That Scales
+description: |
+  VictoriaLogs is log management and log analytics system from VictoriaMetrics.
+  * It provides the following key features:
+    * VictoriaLogs can accept logs from popular log collectors. See https://docs.victoriametrics.com/VictoriaLogs/data-ingestion.
+    * VictoriaLogs is much easier to setup and operate comparing to ElasticSearch and Grafana Loki. See https://docs.victoriametrics.com/VictoriaLogs/QuickStart.html.
+    * VictoriaLogs provides easy yet powerful query language with full-text search capabilities across all the log fields - see https://docs.victoriametrics.com/VictoriaLogs/LogsQL.html.
+    * VictoriaLogs can be seamlessly combined with good old Unix tools for log analysis such as grep, less, sort, jq, etc. See https://docs.victoriametrics.com/VictoriaLogs/querying/#command-line for details.
+    * VictoriaLogs capacity and performance scales linearly with the available resources (CPU, RAM, disk IO, disk space). It runs smoothly on both Raspberry PI and a server with hundreds of CPU cores and terabytes of RAM.
+    * VictoriaLogs can handle much bigger data volumes than ElasticSearch and Grafana Loki when running on comparable hardware. See https://docs.victoriametrics.com/VictoriaLogs/#benchmarks.
+    * VictoriaLogs supports multitenancy - see https://docs.victoriametrics.com/VictoriaLogs/#multitenancy.
+    * VictoriaLogs supports out of order logs' ingestion aka backfilling.
+    * VictoriaLogs provides simple web UI for querying logs - see https://docs.victoriametrics.com/VictoriaLogs/querying/#web-ui.
+
+grade: stable # must be 'stable' to release into candidate/stable channels
+confinement: strict # use 'strict' once you have the right plugs and slots
+
+parts:
+  build:
+    plugin: go
+    go-channel: 1.20/stable
+    go-importpath: github.com/VictoriaMetrics/VictoriaMetrics
+    source: .
+    source-type: local
+    build-packages: [build-essential, make]
+    override-build: |
+      make app-local APP_NAME=victoria-logs
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      cp -p $SNAPCRAFT_PART_BUILD/bin/victoria-logs $SNAPCRAFT_PART_INSTALL/bin/
+      cp -p $SNAPCRAFT_PART_SRC/snap/local/victorialogs-wrapper $SNAPCRAFT_PART_INSTALL/bin/
+    override-pull: |
+      snapcraftctl set-version "$PKG_TAG"
+      snapcraftctl pull
+apps:
+  victorialogs:
+    command: bin/victorialogs-wrapper
+    daemon: simple
+    restart-condition: always
+    restart-delay: 10s
+    plugs: [network,network-bind]
+
+plugs:
+  network:
+  network-bind:
+
+layout:
+  /var/lib/victorialogs:
+    bind: $SNAP_DATA/var/lib/victorialogs
+architectures:
+  - build-on: ['arm64', 'amd64']
+    run-on: ['arm64','amd64']
