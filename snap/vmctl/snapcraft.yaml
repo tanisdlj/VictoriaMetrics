@@ -1,0 +1,72 @@
+name: vmctl
+base: core18
+adopt-info: build
+icon: logo.png
+summary: Data migration tool used to migrate data from supported DBs to VictoriaMetrics
+description: |
+ VictoriaMetrics command-line tool
+
+ vmctl provides various useful actions with VictoriaMetrics components.
+
+ Features:
+    * migrate data from Prometheus to VictoriaMetrics using snapshot API
+    * migrate data from Thanos to VictoriaMetrics
+    * migrate data from Cortex to VictoriaMetrics
+    * migrate data from Mimir to VictoriaMetrics
+    * migrate data from InfluxDB to VictoriaMetrics
+    * migrate data from OpenTSDB to VictoriaMetrics
+    * migrate data between VictoriaMetrics single or cluster version.
+    * migrate data by Prometheus remote read protocol to VictoriaMetrics
+    * verify exported blocks from VictoriaMetrics single or cluster version.
+
+    ** Configuration management**
+    # See more example at https://docs.victoriametrics.com/vmctl.html
+  ./vmctl --help
+  NAME:
+    vmctl - VictoriaMetrics command-line tool
+
+    USAGE:
+      vmctl [global options] command [command options] [arguments...]
+
+  COMMANDS:
+    opentsdb    Migrate timeseries from OpenTSDB
+    influx      Migrate timeseries from InfluxDB
+    prometheus  Migrate timeseries from Prometheus
+    vm-native   Migrate time series between VictoriaMetrics installations via native binary format
+    remote-read Migrate timeseries by Prometheus remote read protocol
+    verify-block  Verifies correctness of data blocks exported via VictoriaMetrics Native format. See https://docs.victoriametrics.com/#how-to-export-data-in-native-format
+
+grade: stable # must be 'stable' to release into candidate/stable channels
+confinement: strict # use 'strict' once you have the right plugs and slots
+
+parts:
+  build:
+    plugin: go
+    go-channel: 1.20/stable
+    go-importpath: github.com/VictoriaMetrics/VictoriaMetrics
+    source: .
+    source-type: local
+    build-packages: [build-essential, make]
+    override-build: |
+      make app-local APP_NAME=vmctl
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      cp -p $SNAPCRAFT_PART_BUILD/bin/vmctl $SNAPCRAFT_PART_INSTALL/bin/
+      cp -p $SNAPCRAFT_PART_SRC/snap/local/vmctl-wrapper $SNAPCRAFT_PART_INSTALL/bin/
+    override-pull: |
+      snapcraftctl set-version "$PKG_TAG"
+      snapcraftctl pull
+apps:
+  vmctl:
+    command: bin/vmctl-wrapper
+    daemon: simple
+    restart-condition: always
+    restart-delay: 10s
+    plugs: [network,network-bind]
+
+plugs:
+  network:
+  network-bind:
+
+architectures:
+  - build-on: ['arm64', 'amd64', 'ppc64el']
+    run-on: ['arm64','amd64', 'ppc64el']
