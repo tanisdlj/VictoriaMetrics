@@ -1,6 +1,5 @@
-GO_VERSION ?=1.20.5
+GO_VERSION ?=1.20.6
 SNAP_BUILDER_IMAGE := local/snap-builder:2.0.0-$(shell echo $(GO_VERSION) | tr :/ __)
-
 
 # truncate pkg_tag, snap has limitations for name length
 SNAP_TAG := $(shell echo "$(PKG_TAG)" | cut -b1-31 )
@@ -10,7 +9,7 @@ snap-victorialogs-builder-image:
 	|| docker build \
 		--build-arg GO_VERSION=$(GO_VERSION) \
 		--tag $(SNAP_BUILDER_IMAGE) \
-		snap/local
+		snap/victorialogs/local
 
 build-victorialogs-snap: snap-victorialogs-builder-image
 	docker run --rm \

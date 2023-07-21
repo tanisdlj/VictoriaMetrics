@@ -1,18 +1,17 @@
-GO_VERSION ?=1.20.5
-SNAP_BUILDER_IMAGE := local/snap-builder:2.0.0-$(shell echo $(GO_VERSION) | tr :/ __)
-
+GO_VERSION ?=1.20.6
+SNAP_BUILDER_IMAGE := local/snap--victoriametricsbuilder:2.0.0-$(shell echo $(GO_VERSION) | tr :/ __)
 
 # truncate pkg_tag, snap has limitations for name length
 SNAP_TAG := $(shell echo "$(PKG_TAG)" | cut -b1-31 )
 
-snap-builder-image:
+snap-victoriametrics-builder-image:
 	(docker image ls --format '{{.Repository}}:{{.Tag}}' | grep -q '$(SNAP_BUILDER_IMAGE)$$') \
 	|| docker build \
 		--build-arg GO_VERSION=$(GO_VERSION) \
 		--tag $(SNAP_BUILDER_IMAGE) \
 		snap/victoriametrics/local
 
-build-snap: snap-builder-image
+build-victoriametrics-snap: snap-builder-image
 	docker run --rm \
 		--mount type=bind,src="$(shell pwd)",dst=/builder \
 		-w /builder \
@@ -20,7 +19,7 @@ build-snap: snap-builder-image
 		$(SNAP_BUILDER_IMAGE) \
 		bash -c 'snapcraft clean && snapcraft snap -o "bin/victoriametrics_$(SNAP_TAG)_multi.snap"'
 
-release-snap: snap-builder-image build-snap
+release-victoriametrics-snap: snap-victoriametrics-builder-image build-victoriametrics-snap
 	docker run --rm \
 		--mount type=bind,src=${HOME}/.snap,dst=/root/.snap \
 		--mount type=bind,src="$(shell pwd)",dst=/builder \

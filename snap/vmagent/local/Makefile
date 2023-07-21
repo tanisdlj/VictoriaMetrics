@@ -1,4 +1,4 @@
-GO_VERSION ?=1.20.5
+GO_VERSION ?=1.20.6
 SNAP_BUILDER_IMAGE := local/snap-vmagent-builder:2.0.0-$(shell echo $(GO_VERSION) | tr :/ __)
 
 # truncate pkg_tag, snap has limitations for name length
