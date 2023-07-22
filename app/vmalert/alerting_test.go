@@ -521,7 +521,7 @@ func TestGroup_Restore(t *testing.T) {
 			fqr.set(r.Expr, metricWithValueAndLabels(t, 0, "__name__", r.Alert))
 		}
 
-		fg := newGroup(config.Group{Name: "TestRestore", Rules: rules}, fqr, time.Second, nil)
+		fg := newGroup(config.Group{Name: "TestRestore", Rules: rules, Interval: promutils.NewDuration(time.Second), Concurrency: 1}, fqr, nil)
 		wg := sync.WaitGroup{}
 		wg.Add(1)
 		go func() {
@@ -872,7 +872,6 @@ func TestAlertingRule_Template(t *testing.T) {
 				gotAlert := tc.rule.alerts[hash]
 				if gotAlert == nil {
 					t.Fatalf("alert %d is missing; labels: %v; annotations: %v", hash, expAlert.Labels, expAlert.Annotations)
-					break
 				}
 				if !reflect.DeepEqual(expAlert.Annotations, gotAlert.Annotations) {
 					t.Fatalf("expected to have annotations %#v; got %#v", expAlert.Annotations, gotAlert.Annotations)
