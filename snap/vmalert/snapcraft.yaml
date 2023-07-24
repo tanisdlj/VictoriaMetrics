@@ -2,7 +2,7 @@ name: vmalert
 base: core18
 adopt-info: build
 icon: logo.png
-summary: vmalert executes a list of the given alerting or recording rules against configured -datasource.url compatible with Prometheus
+summary: executes a list of given alerting or recording rules
 description: |
   For sending alerting notifications *vmalert** relies on **Alertmanager** configured via `-notifier.url` flag. 
   Recording rules results are persisted via remote write protocol and require `-remoteWrite.url` to be configured.
@@ -23,7 +23,6 @@ description: |
   * Supports reusable templates for annotations;
   * Load of recording and alerting rules from local filesystem, URL, GCS and S3;
   * Detect alerting rules which don't match any series.
-
 
 grade: stable # must be 'stable' to release into candidate/stable channels
 confinement: strict # use 'strict' once you have the right plugs and slots
