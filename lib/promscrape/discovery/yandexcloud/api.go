@@ -55,7 +55,7 @@ func newAPIConfig(sdc *SDConfig, baseDir string) (*apiConfig, error) {
 			BaseDir:   baseDir,
 			TLSConfig: sdc.TLSConfig,
 		}
-		ac, err := opts.NewConfig()
+		ac, err := opts.NewConfig(false)
 		if err != nil {
 			return nil, fmt.Errorf("cannot initialize TLS config: %w", err)
 		}

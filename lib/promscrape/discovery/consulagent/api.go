@@ -52,7 +52,7 @@ func newAPIConfig(sdc *SDConfig, baseDir string) (*apiConfig, error) {
 			Password: sdc.Password,
 		}
 	}
-	ac, err := hcc.NewConfig(baseDir)
+	ac, err := hcc.NewConfig(baseDir, false)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse auth config: %w", err)
 	}
@@ -70,7 +70,7 @@ func newAPIConfig(sdc *SDConfig, baseDir string) (*apiConfig, error) {
 		}
 		apiServer = scheme + "://" + apiServer
 	}
-	proxyAC, err := sdc.ProxyClientConfig.NewConfig(baseDir)
+	proxyAC, err := sdc.ProxyClientConfig.NewConfig(baseDir, false)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse proxy auth config: %w", err)
 	}

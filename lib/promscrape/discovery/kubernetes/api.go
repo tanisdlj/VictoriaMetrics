@@ -17,7 +17,7 @@ func newAPIConfig(sdc *SDConfig, baseDir string, swcFunc ScrapeWorkConstructorFu
 		return nil, fmt.Errorf("unexpected `role`: %q; must be one of `node`, `pod`, `service`, `endpoints`, `endpointslice` or `ingress`", role)
 	}
 	cc := &sdc.HTTPClientConfig
-	ac, err := cc.NewConfig(baseDir)
+	ac, err := cc.NewConfig(baseDir, false)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse auth config: %w", err)
 	}
@@ -40,7 +40,7 @@ func newAPIConfig(sdc *SDConfig, baseDir string, swcFunc ScrapeWorkConstructorFu
 			TLSConfig:       kc.tlsConfig,
 			Headers:         cc.Headers,
 		}
-		acNew, err := opts.NewConfig()
+		acNew, err := opts.NewConfig(false)
 		if err != nil {
 			return nil, fmt.Errorf("cannot initialize auth config from `kubeconfig_file: %q`: %w", sdc.KubeConfigFile, err)
 		}
@@ -74,7 +74,7 @@ func newAPIConfig(sdc *SDConfig, baseDir string, swcFunc ScrapeWorkConstructorFu
 			TLSConfig:       &tlsConfig,
 			Headers:         cc.Headers,
 		}
-		acNew, err := opts.NewConfig()
+		acNew, err := opts.NewConfig(false)
 		if err != nil {
 			return nil, fmt.Errorf("cannot initialize service account auth: %w; probably, `kubernetes_sd_config->api_server` is missing in Prometheus configs?", err)
 		}

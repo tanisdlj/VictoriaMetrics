@@ -16,7 +16,7 @@ func AuthConfig(filterOptions ...AuthConfigOptions) (*promauth.Config, error) {
 		option(authCfg)
 	}
 
-	return authCfg.NewConfig(".")
+	return authCfg.NewConfig(".", false)
 }
 
 // WithBasicAuth returns AuthConfigOptions and initialized promauth.BasicAuthConfig based on given params
