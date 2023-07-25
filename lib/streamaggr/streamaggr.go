@@ -194,13 +194,25 @@ func (a *Aggregators) Equal(b *Aggregators) bool {
 }
 
 // Push pushes tss to a.
-func (a *Aggregators) Push(tss []prompbmarshal.TimeSeries) {
-	if a == nil {
-		return
+//
+// Push sets matchIdxs[idx] to 1 if the corresponding tss[idx] was used in aggregations.
+// Otherwise matchIdxs[idx] is set to 0.
+//
+// Push returns matchIdxs with len equal to len(tss).
+// It re-uses the matchIdxs if it has enough capacity to hold len(tss) items.
+// Otherwise it allocates new matchIdxs.
+func (a *Aggregators) Push(tss []prompbmarshal.TimeSeries, matchIdxs []byte) []byte {
+	matchIdxs = bytesutil.ResizeNoCopyMayOverallocate(matchIdxs, len(tss))
+	for i := 0; i < len(matchIdxs); i++ {
+		matchIdxs[i] = 0
 	}
-	for _, aggr := range a.as {
-		aggr.Push(tss)
+
+	if a != nil {
+		for _, aggr := range a.as {
+			aggr.Push(tss, matchIdxs)
+		}
 	}
+	return matchIdxs
 }
 
 // aggregator aggregates input series according to the config passed to NewAggregator
@@ -449,7 +461,7 @@ func (a *aggregator) dedupFlush() {
 		skipAggrSuffix: true,
 	}
 	a.dedupAggr.appendSeriesForFlush(ctx)
-	a.push(ctx.tss, false)
+	a.push(ctx.tss, nil)
 }
 
 func (a *aggregator) flush() {
@@ -498,22 +510,25 @@ func (a *aggregator) MustStop() {
 }
 
 // Push pushes tss to a.
-func (a *aggregator) Push(tss []prompbmarshal.TimeSeries) {
+func (a *aggregator) Push(tss []prompbmarshal.TimeSeries, matchIdxs []byte) {
 	if a.dedupAggr == nil {
-		a.push(tss, true)
+		// Deduplication is disabled.
+		a.push(tss, matchIdxs)
 		return
 	}
 
-	// deduplication is enabled.
+	// Deduplication is enabled.
 	// push samples to dedupAggr, so later they will be pushed to the configured aggregators.
 	pushSample := a.dedupAggr.pushSample
 	inputKey := ""
 	bb := bbPool.Get()
 	labels := promutils.GetLabels()
-	for _, ts := range tss {
+	for idx, ts := range tss {
 		if !a.match.Match(ts.Labels) {
 			continue
 		}
+		matchIdxs[idx] = 1
+
 		labels.Labels = append(labels.Labels[:0], ts.Labels...)
 		labels.Labels = a.inputRelabeling.Apply(labels.Labels, 0)
 		if len(labels.Labels) == 0 {
@@ -532,14 +547,19 @@ func (a *aggregator) Push(tss []prompbmarshal.TimeSeries) {
 	bbPool.Put(bb)
 }
 
-func (a *aggregator) push(tss []prompbmarshal.TimeSeries, applyFilters bool) {
+func (a *aggregator) push(tss []prompbmarshal.TimeSeries, matchIdxs []byte) {
 	labels := promutils.GetLabels()
 	tmpLabels := promutils.GetLabels()
 	bb := bbPool.Get()
-	for _, ts := range tss {
-		if applyFilters && !a.match.Match(ts.Labels) {
-			continue
+	applyFilters := matchIdxs != nil
+	for idx, ts := range tss {
+		if applyFilters {
+			if !a.match.Match(ts.Labels) {
+				continue
+			}
+			matchIdxs[idx] = 1
 		}
+
 		labels.Labels = append(labels.Labels[:0], ts.Labels...)
 		if applyFilters {
 			labels.Labels = a.inputRelabeling.Apply(labels.Labels, 0)
