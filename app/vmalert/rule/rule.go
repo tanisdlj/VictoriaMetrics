@@ -1,4 +1,4 @@
-package main
+package rule
 
 import (
 	"context"
@@ -35,44 +35,46 @@ var errDuplicate = errors.New("result contains metrics with the same labelset af
 
 type ruleState struct {
 	sync.RWMutex
-	entries []ruleStateEntry
+	entries []StateEntry
 	cur     int
 }
 
-type ruleStateEntry struct {
+// StateEntry stores rule's execution states
+type StateEntry struct {
 	// stores last moment of time rule.Exec was called
-	time time.Time
+	Time time.Time
 	// stores the timesteamp with which rule.Exec was called
-	at time.Time
+	At time.Time
 	// stores the duration of the last rule.Exec call
-	duration time.Duration
+	Duration time.Duration
 	// stores last error that happened in Exec func
 	// resets on every successful Exec
 	// may be used as Health ruleState
-	err error
+	Err error
 	// stores the number of samples returned during
 	// the last evaluation
-	samples int
+	Samples int
 	// stores the number of time series fetched during
 	// the last evaluation.
 	// Is supported by VictoriaMetrics only, starting from v1.90.0
 	// If seriesFetched == nil, then this attribute was missing in
 	// datasource response (unsupported).
-	seriesFetched *int
+	SeriesFetched *int
 	// stores the curl command reflecting the HTTP request used during rule.Exec
-	curl string
+	Curl string
 }
 
-func newRuleState(size int) *ruleState {
+// NewRuleState create ruleState with given size RuleStateEntry
+func NewRuleState(size int) *ruleState {
 	if size < 1 {
 		size = 1
 	}
 	return &ruleState{
-		entries: make([]ruleStateEntry, size),
+		entries: make([]StateEntry, size),
 	}
 }
 
-func (s *ruleState) getLast() ruleStateEntry {
+func (s *ruleState) getLast() StateEntry {
 	s.RLock()
 	defer s.RUnlock()
 	return s.entries[s.cur]
@@ -84,8 +86,8 @@ func (s *ruleState) size() int {
 	return len(s.entries)
 }
 
-func (s *ruleState) getAll() []ruleStateEntry {
-	entries := make([]ruleStateEntry, 0)
+func (s *ruleState) getAll() []StateEntry {
+	entries := make([]StateEntry, 0)
 
 	s.RLock()
 	defer s.RUnlock()
@@ -93,7 +95,7 @@ func (s *ruleState) getAll() []ruleStateEntry {
 	cur := s.cur
 	for {
 		e := s.entries[cur]
-		if !e.time.IsZero() || !e.at.IsZero() {
+		if !e.Time.IsZero() || !e.At.IsZero() {
 			entries = append(entries, e)
 		}
 		cur--
@@ -106,7 +108,7 @@ func (s *ruleState) getAll() []ruleStateEntry {
 	}
 }
 
-func (s *ruleState) add(e ruleStateEntry) {
+func (s *ruleState) Add(e StateEntry) {
 	s.Lock()
 	defer s.Unlock()
 

@@ -10,30 +10,31 @@ import (
 	"time"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/notifier"
+	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/rule"
 )
 
 func TestHandler(t *testing.T) {
-	ar := &AlertingRule{
+	ar := &rule.AlertingRule{
 		Name: "alert",
-		alerts: map[uint64]*notifier.Alert{
+		Alerts: map[uint64]*notifier.Alert{
 			0: {State: notifier.StateFiring},
 		},
-		state: newRuleState(10),
+		State: rule.NewRuleState(10),
 	}
-	ar.state.add(ruleStateEntry{
-		time:    time.Now(),
-		at:      time.Now(),
-		samples: 10,
+	ar.State.Add(rule.StateEntry{
+		Time:    time.Now(),
+		At:      time.Now(),
+		Samples: 10,
 	})
-	rr := &RecordingRule{
+	rr := &rule.RecordingRule{
 		Name:  "record",
-		state: newRuleState(10),
+		State: rule.NewRuleState(10),
 	}
-	g := &Group{
+	g := &rule.Group{
 		Name:  "group",
-		Rules: []Rule{ar, rr},
+		Rules: []rule.Rule{ar, rr},
 	}
-	m := &manager{groups: make(map[uint64]*Group)}
+	m := &manager{groups: make(map[uint64]*rule.Group)}
 	m.groups[0] = g
 	rh := &requestHandler{m: m}
 
@@ -82,10 +83,10 @@ func TestHandler(t *testing.T) {
 		}
 	})
 	t.Run("/vmalert/rule?badParam", func(t *testing.T) {
-		params := fmt.Sprintf("?%s=0&%s=1", paramGroupID, paramRuleID)
+		params := fmt.Sprintf("?%s=0&%s=1", rule.ParamGroupID, rule.ParamRuleID)
 		getResp(ts.URL+"/vmalert/rule"+params, nil, 404)
 
-		params = fmt.Sprintf("?%s=1&%s=0", paramGroupID, paramRuleID)
+		params = fmt.Sprintf("?%s=1&%s=0", rule.ParamGroupID, rule.ParamRuleID)
 		getResp(ts.URL+"/vmalert/rule"+params, nil, 404)
 	})
 
@@ -103,14 +104,14 @@ func TestHandler(t *testing.T) {
 		}
 	})
 	t.Run("/api/v1/alert?alertID&groupID", func(t *testing.T) {
-		expAlert := ar.newAlertAPI(*ar.alerts[0])
-		alert := &APIAlert{}
+		expAlert := ar.NewAlertAPI(*ar.Alerts[0])
+		alert := &rule.APIAlert{}
 		getResp(ts.URL+"/"+expAlert.APILink(), alert, 200)
 		if !reflect.DeepEqual(alert, expAlert) {
 			t.Errorf("expected %v is equal to %v", alert, expAlert)
 		}
 
-		alert = &APIAlert{}
+		alert = &rule.APIAlert{}
 		getResp(ts.URL+"/vmalert/"+expAlert.APILink(), alert, 200)
 		if !reflect.DeepEqual(alert, expAlert) {
 			t.Errorf("expected %v is equal to %v", alert, expAlert)
@@ -118,16 +119,16 @@ func TestHandler(t *testing.T) {
 	})
 
 	t.Run("/api/v1/alert?badParams", func(t *testing.T) {
-		params := fmt.Sprintf("?%s=0&%s=1", paramGroupID, paramAlertID)
+		params := fmt.Sprintf("?%s=0&%s=1", rule.ParamGroupID, rule.ParamAlertID)
 		getResp(ts.URL+"/api/v1/alert"+params, nil, 404)
 		getResp(ts.URL+"/vmalert/api/v1/alert"+params, nil, 404)
 
-		params = fmt.Sprintf("?%s=1&%s=0", paramGroupID, paramAlertID)
+		params = fmt.Sprintf("?%s=1&%s=0", rule.ParamGroupID, rule.ParamAlertID)
 		getResp(ts.URL+"/api/v1/alert"+params, nil, 404)
 		getResp(ts.URL+"/vmalert/api/v1/alert"+params, nil, 404)
 
 		// bad request, alertID is missing
-		params = fmt.Sprintf("?%s=1", paramGroupID)
+		params = fmt.Sprintf("?%s=1", rule.ParamGroupID)
 		getResp(ts.URL+"/api/v1/alert"+params, nil, 400)
 		getResp(ts.URL+"/vmalert/api/v1/alert"+params, nil, 400)
 	})
@@ -148,7 +149,7 @@ func TestHandler(t *testing.T) {
 }
 
 func TestEmptyResponse(t *testing.T) {
-	rhWithNoGroups := &requestHandler{m: &manager{groups: make(map[uint64]*Group)}}
+	rhWithNoGroups := &requestHandler{m: &manager{groups: make(map[uint64]*rule.Group)}}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { rhWithNoGroups.handler(w, r) }))
 	defer ts.Close()
 
@@ -201,7 +202,7 @@ func TestEmptyResponse(t *testing.T) {
 		}
 	})
 
-	rhWithEmptyGroup := &requestHandler{m: &manager{groups: map[uint64]*Group{0: {Name: "test"}}}}
+	rhWithEmptyGroup := &requestHandler{m: &manager{groups: map[uint64]*rule.Group{0: {Name: "test"}}}}
 	ts.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { rhWithEmptyGroup.handler(w, r) })
 
 	t.Run("empty group /api/v1/rules", func(t *testing.T) {

@@ -1,213 +1,18 @@
-package main
+package rule
 
 import (
-	"context"
 	"fmt"
-	"net/http"
 	"reflect"
 	"sort"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/datasource"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/notifier"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/prompbmarshal"
 )
 
-type fakeQuerier struct {
-	sync.Mutex
-	metrics []datasource.Metric
-	err     error
-}
-
-func (fq *fakeQuerier) setErr(err error) {
-	fq.Lock()
-	fq.err = err
-	fq.Unlock()
-}
-
-func (fq *fakeQuerier) reset() {
-	fq.Lock()
-	fq.err = nil
-	fq.metrics = fq.metrics[:0]
-	fq.Unlock()
-}
-
-func (fq *fakeQuerier) add(metrics ...datasource.Metric) {
-	fq.Lock()
-	fq.metrics = append(fq.metrics, metrics...)
-	fq.Unlock()
-}
-
-func (fq *fakeQuerier) BuildWithParams(_ datasource.QuerierParams) datasource.Querier {
-	return fq
-}
-
-func (fq *fakeQuerier) QueryRange(ctx context.Context, q string, _, _ time.Time) (datasource.Result, error) {
-	req, _, err := fq.Query(ctx, q, time.Now())
-	return req, err
-}
-
-func (fq *fakeQuerier) Query(_ context.Context, _ string, _ time.Time) (datasource.Result, *http.Request, error) {
-	fq.Lock()
-	defer fq.Unlock()
-	if fq.err != nil {
-		return datasource.Result{}, nil, fq.err
-	}
-	cp := make([]datasource.Metric, len(fq.metrics))
-	copy(cp, fq.metrics)
-	req, _ := http.NewRequest(http.MethodPost, "foo.com", nil)
-	return datasource.Result{Data: cp}, req, nil
-}
-
-type fakeQuerierWithRegistry struct {
-	sync.Mutex
-	registry map[string][]datasource.Metric
-}
-
-func (fqr *fakeQuerierWithRegistry) set(key string, metrics ...datasource.Metric) {
-	fqr.Lock()
-	if fqr.registry == nil {
-		fqr.registry = make(map[string][]datasource.Metric)
-	}
-	fqr.registry[key] = metrics
-	fqr.Unlock()
-}
-
-func (fqr *fakeQuerierWithRegistry) reset() {
-	fqr.Lock()
-	fqr.registry = nil
-	fqr.Unlock()
-}
-
-func (fqr *fakeQuerierWithRegistry) BuildWithParams(_ datasource.QuerierParams) datasource.Querier {
-	return fqr
-}
-
-func (fqr *fakeQuerierWithRegistry) QueryRange(ctx context.Context, q string, _, _ time.Time) (datasource.Result, error) {
-	req, _, err := fqr.Query(ctx, q, time.Now())
-	return req, err
-}
-
-func (fqr *fakeQuerierWithRegistry) Query(_ context.Context, expr string, _ time.Time) (datasource.Result, *http.Request, error) {
-	fqr.Lock()
-	defer fqr.Unlock()
-
-	req, _ := http.NewRequest(http.MethodPost, "foo.com", nil)
-	metrics, ok := fqr.registry[expr]
-	if !ok {
-		return datasource.Result{}, req, nil
-	}
-	cp := make([]datasource.Metric, len(metrics))
-	copy(cp, metrics)
-	return datasource.Result{Data: cp}, req, nil
-}
-
-type fakeQuerierWithDelay struct {
-	fakeQuerier
-	delay time.Duration
-}
-
-func (fqd *fakeQuerierWithDelay) Query(ctx context.Context, expr string, ts time.Time) (datasource.Result, *http.Request, error) {
-	timer := time.NewTimer(fqd.delay)
-	select {
-	case <-ctx.Done():
-	case <-timer.C:
-	}
-	return fqd.fakeQuerier.Query(ctx, expr, ts)
-}
-
-func (fqd *fakeQuerierWithDelay) BuildWithParams(_ datasource.QuerierParams) datasource.Querier {
-	return fqd
-}
-
-type fakeNotifier struct {
-	sync.Mutex
-	alerts []notifier.Alert
-	// records number of received alerts in total
-	counter int
-}
-
-func (*fakeNotifier) Close()       {}
-func (*fakeNotifier) Addr() string { return "" }
-func (fn *fakeNotifier) Send(_ context.Context, alerts []notifier.Alert, _ map[string]string) error {
-	fn.Lock()
-	defer fn.Unlock()
-	fn.counter += len(alerts)
-	fn.alerts = alerts
-	return nil
-}
-
-func (fn *fakeNotifier) getCounter() int {
-	fn.Lock()
-	defer fn.Unlock()
-	return fn.counter
-}
-
-func (fn *fakeNotifier) getAlerts() []notifier.Alert {
-	fn.Lock()
-	defer fn.Unlock()
-	return fn.alerts
-}
-
-type faultyNotifier struct {
-	fakeNotifier
-}
-
-func (fn *faultyNotifier) Send(ctx context.Context, _ []notifier.Alert, _ map[string]string) error {
-	d, ok := ctx.Deadline()
-	if ok {
-		time.Sleep(time.Until(d))
-	}
-	return fmt.Errorf("send failed")
-}
-
-func metricWithValueAndLabels(t *testing.T, value float64, labels ...string) datasource.Metric {
-	return metricWithValuesAndLabels(t, []float64{value}, labels...)
-}
-
-func metricWithValuesAndLabels(t *testing.T, values []float64, labels ...string) datasource.Metric {
-	t.Helper()
-	m := metricWithLabels(t, labels...)
-	m.Values = values
-	for i := range values {
-		m.Timestamps = append(m.Timestamps, int64(i))
-	}
-	return m
-}
-
-func metricWithLabels(t *testing.T, labels ...string) datasource.Metric {
-	t.Helper()
-	if len(labels) == 0 || len(labels)%2 != 0 {
-		t.Fatalf("expected to get even number of labels")
-	}
-	m := datasource.Metric{Values: []float64{1}, Timestamps: []int64{1}}
-	for i := 0; i < len(labels); i += 2 {
-		m.Labels = append(m.Labels, datasource.Label{
-			Name:  labels[i],
-			Value: labels[i+1],
-		})
-	}
-	return m
-}
-
-func toPromLabels(t *testing.T, labels ...string) []prompbmarshal.Label {
-	t.Helper()
-	if len(labels) == 0 || len(labels)%2 != 0 {
-		t.Fatalf("expected to get even number of labels")
-	}
-	var ls []prompbmarshal.Label
-	for i := 0; i < len(labels); i += 2 {
-		ls = append(ls, prompbmarshal.Label{
-			Name:  labels[i],
-			Value: labels[i+1],
-		})
-	}
-	return ls
-}
-
-func compareGroups(t *testing.T, a, b *Group) {
+// CompareGroups is a test helper func for other tests
+func CompareGroups(t *testing.T, a, b *Group) {
 	t.Helper()
 	if a.Name != b.Name {
 		t.Fatalf("expected group name %q; got %q", a.Name, b.Name)
@@ -285,6 +90,50 @@ func compareAlertingRules(t *testing.T, a, b *AlertingRule) error {
 		return fmt.Errorf("expected to have Type %#v; got %#v", a.Type.String(), b.Type.String())
 	}
 	return nil
+}
+
+func metricWithValueAndLabels(t *testing.T, value float64, labels ...string) datasource.Metric {
+	return metricWithValuesAndLabels(t, []float64{value}, labels...)
+}
+
+func metricWithValuesAndLabels(t *testing.T, values []float64, labels ...string) datasource.Metric {
+	t.Helper()
+	m := metricWithLabels(t, labels...)
+	m.Values = values
+	for i := range values {
+		m.Timestamps = append(m.Timestamps, int64(i))
+	}
+	return m
+}
+
+func metricWithLabels(t *testing.T, labels ...string) datasource.Metric {
+	t.Helper()
+	if len(labels) == 0 || len(labels)%2 != 0 {
+		t.Fatalf("expected to get even number of labels")
+	}
+	m := datasource.Metric{Values: []float64{1}, Timestamps: []int64{1}}
+	for i := 0; i < len(labels); i += 2 {
+		m.Labels = append(m.Labels, datasource.Label{
+			Name:  labels[i],
+			Value: labels[i+1],
+		})
+	}
+	return m
+}
+
+func toPromLabels(t *testing.T, labels ...string) []prompbmarshal.Label {
+	t.Helper()
+	if len(labels) == 0 || len(labels)%2 != 0 {
+		t.Fatalf("expected to get even number of labels")
+	}
+	var ls []prompbmarshal.Label
+	for i := 0; i < len(labels); i += 2 {
+		ls = append(ls, prompbmarshal.Label{
+			Name:  labels[i],
+			Value: labels[i+1],
+		})
+	}
+	return ls
 }
 
 func compareTimeSeries(t *testing.T, a, b []prompbmarshal.TimeSeries) error {

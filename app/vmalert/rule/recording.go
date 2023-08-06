@@ -1,4 +1,4 @@
-package main
+package rule
 
 import (
 	"context"
@@ -28,7 +28,7 @@ type RecordingRule struct {
 
 	// state stores recent state changes
 	// during evaluations
-	state *ruleState
+	State *ruleState
 
 	metrics *recordingRuleMetrics
 }
@@ -67,24 +67,24 @@ func newRecordingRule(qb datasource.QuerierBuilder, group *Group, cfg config.Rul
 	}
 
 	if cfg.UpdateEntriesLimit != nil {
-		rr.state = newRuleState(*cfg.UpdateEntriesLimit)
+		rr.State = NewRuleState(*cfg.UpdateEntriesLimit)
 	} else {
-		rr.state = newRuleState(*ruleUpdateEntriesLimit)
+		rr.State = NewRuleState(*ruleUpdateEntriesLimit)
 	}
 
 	labels := fmt.Sprintf(`recording=%q, group=%q, id="%d"`, rr.Name, group.Name, rr.ID())
 	rr.metrics.errors = utils.GetOrCreateGauge(fmt.Sprintf(`vmalert_recording_rules_error{%s}`, labels),
 		func() float64 {
-			e := rr.state.getLast()
-			if e.err == nil {
+			e := rr.State.getLast()
+			if e.Err == nil {
 				return 0
 			}
 			return 1
 		})
 	rr.metrics.samples = utils.GetOrCreateGauge(fmt.Sprintf(`vmalert_recording_rules_last_evaluation_samples{%s}`, labels),
 		func() float64 {
-			e := rr.state.getLast()
-			return float64(e.samples)
+			e := rr.State.getLast()
+			return float64(e.Samples)
 		})
 	return rr
 }
@@ -121,29 +121,29 @@ func (rr *RecordingRule) ExecRange(ctx context.Context, start, end time.Time) ([
 func (rr *RecordingRule) Exec(ctx context.Context, ts time.Time, limit int) ([]prompbmarshal.TimeSeries, error) {
 	start := time.Now()
 	res, req, err := rr.q.Query(ctx, rr.Expr, ts)
-	curState := ruleStateEntry{
-		time:          start,
-		at:            ts,
-		duration:      time.Since(start),
-		samples:       len(res.Data),
-		seriesFetched: res.SeriesFetched,
-		curl:          requestToCurl(req),
+	curState := StateEntry{
+		Time:          start,
+		At:            ts,
+		Duration:      time.Since(start),
+		Samples:       len(res.Data),
+		SeriesFetched: res.SeriesFetched,
+		Curl:          requestToCurl(req),
 	}
 
 	defer func() {
-		rr.state.add(curState)
+		rr.State.Add(curState)
 	}()
 
 	if err != nil {
-		curState.err = fmt.Errorf("failed to execute query %q: %w", rr.Expr, err)
-		return nil, curState.err
+		curState.Err = fmt.Errorf("failed to execute query %q: %w", rr.Expr, err)
+		return nil, curState.Err
 	}
 
 	qMetrics := res.Data
 	numSeries := len(qMetrics)
 	if limit > 0 && numSeries > limit {
-		curState.err = fmt.Errorf("exec exceeded limit of %d with %d series", limit, numSeries)
-		return nil, curState.err
+		curState.Err = fmt.Errorf("exec exceeded limit of %d with %d series", limit, numSeries)
+		return nil, curState.Err
 	}
 
 	duplicates := make(map[string]struct{}, len(qMetrics))
@@ -152,8 +152,8 @@ func (rr *RecordingRule) Exec(ctx context.Context, ts time.Time, limit int) ([]p
 		ts := rr.toTimeSeries(r)
 		key := stringifyLabels(ts)
 		if _, ok := duplicates[key]; ok {
-			curState.err = fmt.Errorf("original metric %v; resulting labels %q: %w", r, key, errDuplicate)
-			return nil, curState.err
+			curState.Err = fmt.Errorf("original metric %v; resulting labels %q: %w", r, key, errDuplicate)
+			return nil, curState.Err
 		}
 		duplicates[key] = struct{}{}
 		tss = append(tss, ts)
@@ -208,27 +208,27 @@ func (rr *RecordingRule) UpdateWith(r Rule) error {
 // ToAPI returns Rule's representation in form
 // of APIRule
 func (rr *RecordingRule) ToAPI() APIRule {
-	lastState := rr.state.getLast()
+	lastState := rr.State.getLast()
 	r := APIRule{
 		Type:              "recording",
 		DatasourceType:    rr.Type.String(),
 		Name:              rr.Name,
 		Query:             rr.Expr,
 		Labels:            rr.Labels,
-		LastEvaluation:    lastState.time,
-		EvaluationTime:    lastState.duration.Seconds(),
+		LastEvaluation:    lastState.Time,
+		EvaluationTime:    lastState.Duration.Seconds(),
 		Health:            "ok",
-		LastSamples:       lastState.samples,
-		LastSeriesFetched: lastState.seriesFetched,
-		MaxUpdates:        rr.state.size(),
-		Updates:           rr.state.getAll(),
+		LastSamples:       lastState.Samples,
+		LastSeriesFetched: lastState.SeriesFetched,
+		MaxUpdates:        rr.State.size(),
+		Updates:           rr.State.getAll(),
 
 		// encode as strings to avoid rounding
 		ID:      fmt.Sprintf("%d", rr.ID()),
 		GroupID: fmt.Sprintf("%d", rr.GroupID),
 	}
-	if lastState.err != nil {
-		r.LastError = lastState.err.Error()
+	if lastState.Err != nil {
+		r.LastError = lastState.Err.Error()
 		r.Health = "err"
 	}
 	return r

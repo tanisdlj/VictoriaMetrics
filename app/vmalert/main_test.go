@@ -8,10 +8,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/datasource"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/notifier"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/remotewrite"
+	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/rule"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/procutil"
 )
+
+func init() {
+	// Disable rand sleep on group start during tests in order to speed up test execution.
+	// Rand sleep is needed only in prod code.
+	rule.SkipRandSleepOnGroupStart = true
+}
 
 func TestGetExternalURL(t *testing.T) {
 	expURL := "https://vicotriametrics.com/path"
@@ -40,7 +48,7 @@ func TestGetAlertURLGenerator(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error %s", err)
 	}
-	exp := fmt.Sprintf("https://victoriametrics.com/path/vmalert/alert?%s=42&%s=2", paramGroupID, paramAlertID)
+	exp := fmt.Sprintf("https://victoriametrics.com/path/vmalert/alert?%s=42&%s=2", rule.ParamGroupID, rule.ParamAlertID)
 	if exp != fn(testAlert) {
 		t.Errorf("unexpected url want %s, got %s", exp, fn(testAlert))
 	}
@@ -98,10 +106,10 @@ groups:
 	ctx, cancel := context.WithCancel(context.Background())
 
 	m := &manager{
-		querierBuilder: &fakeQuerier{},
-		groups:         make(map[uint64]*Group),
+		querierBuilder: &datasource.FakeQuerier{},
+		groups:         make(map[uint64]*rule.Group),
 		labels:         map[string]string{},
-		notifiers:      func() []notifier.Notifier { return []notifier.Notifier{&fakeNotifier{}} },
+		notifiers:      func() []notifier.Notifier { return []notifier.Notifier{&notifier.FakeNotifier{}} },
 		rw:             &remotewrite.Client{},
 	}
 

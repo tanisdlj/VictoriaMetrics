@@ -1,8 +1,17 @@
-package main
+package rule
 
 import (
 	"fmt"
 	"time"
+)
+
+const (
+	// ParamGroupID is group id key in url parameter
+	ParamGroupID = "group_id"
+	// ParamAlertID is alert id key in url parameter
+	ParamAlertID = "alert_id"
+	// ParamRuleID is rule id key in url parameter
+	ParamRuleID = "rule_id"
 )
 
 // APIAlert represents a notifier.AlertingRule state
@@ -40,13 +49,13 @@ type APIAlert struct {
 // WebLink returns a link to the alert which can be used in UI.
 func (aa *APIAlert) WebLink() string {
 	return fmt.Sprintf("alert?%s=%s&%s=%s",
-		paramGroupID, aa.GroupID, paramAlertID, aa.ID)
+		ParamGroupID, aa.GroupID, ParamAlertID, aa.ID)
 }
 
 // APILink returns a link to the alert's JSON representation.
 func (aa *APIAlert) APILink() string {
 	return fmt.Sprintf("api/v1/alert?%s=%s&%s=%s",
-		paramGroupID, aa.GroupID, paramAlertID, aa.ID)
+		ParamGroupID, aa.GroupID, ParamAlertID, aa.ID)
 }
 
 // APIGroup represents Group for WEB view
@@ -138,11 +147,11 @@ type APIRule struct {
 	// MaxUpdates is the max number of recorded ruleStateEntry objects
 	MaxUpdates int `json:"max_updates_entries"`
 	// Updates contains the ordered list of recorded ruleStateEntry objects
-	Updates []ruleStateEntry `json:"-"`
+	Updates []StateEntry `json:"-"`
 }
 
 // WebLink returns a link to the alert which can be used in UI.
 func (ar APIRule) WebLink() string {
 	return fmt.Sprintf("rule?%s=%s&%s=%s",
-		paramGroupID, ar.GroupID, paramRuleID, ar.ID)
+		ParamGroupID, ar.GroupID, ParamRuleID, ar.ID)
 }

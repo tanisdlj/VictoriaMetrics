@@ -1,4 +1,4 @@
-package main
+package rule
 
 import (
 	"context"
@@ -95,7 +95,7 @@ func TestAlertingRule_ToTimeSeries(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.rule.Name, func(t *testing.T) {
-			tc.rule.alerts[tc.alert.ID] = tc.alert
+			tc.rule.Alerts[tc.alert.ID] = tc.alert
 			tss := tc.rule.toTimeSeries(timestamp.Unix())
 			if err := compareTimeSeries(t, tc.expTS, tss); err != nil {
 				t.Fatalf("timeseries missmatch: %s", err)
@@ -303,12 +303,12 @@ func TestAlertingRule_Exec(t *testing.T) {
 	fakeGroup := Group{Name: "TestRule_Exec"}
 	for _, tc := range testCases {
 		t.Run(tc.rule.Name, func(t *testing.T) {
-			fq := &fakeQuerier{}
+			fq := &datasource.FakeQuerier{}
 			tc.rule.q = fq
 			tc.rule.GroupID = fakeGroup.ID()
 			for i, step := range tc.steps {
-				fq.reset()
-				fq.add(step...)
+				fq.Reset()
+				fq.Add(step...)
 				if _, err := tc.rule.Exec(context.TODO(), time.Now(), 0); err != nil {
 					t.Fatalf("unexpected err: %s", err)
 				}
@@ -317,8 +317,8 @@ func TestAlertingRule_Exec(t *testing.T) {
 				if _, ok := tc.expAlerts[i]; !ok {
 					continue
 				}
-				if len(tc.rule.alerts) != len(tc.expAlerts[i]) {
-					t.Fatalf("evalIndex %d: expected %d alerts; got %d", i, len(tc.expAlerts[i]), len(tc.rule.alerts))
+				if len(tc.rule.Alerts) != len(tc.expAlerts[i]) {
+					t.Fatalf("evalIndex %d: expected %d alerts; got %d", i, len(tc.expAlerts[i]), len(tc.rule.Alerts))
 				}
 				expAlerts := make(map[uint64]*notifier.Alert)
 				for _, ta := range tc.expAlerts[i] {
@@ -332,7 +332,7 @@ func TestAlertingRule_Exec(t *testing.T) {
 					expAlerts[h] = ta.alert
 				}
 				for key, exp := range expAlerts {
-					got, ok := tc.rule.alerts[key]
+					got, ok := tc.rule.Alerts[key]
 					if !ok {
 						t.Fatalf("evalIndex %d: expected to have key %d", i, key)
 					}
@@ -476,10 +476,10 @@ func TestAlertingRule_ExecRange(t *testing.T) {
 	fakeGroup := Group{Name: "TestRule_ExecRange"}
 	for _, tc := range testCases {
 		t.Run(tc.rule.Name, func(t *testing.T) {
-			fq := &fakeQuerier{}
+			fq := &datasource.FakeQuerier{}
 			tc.rule.q = fq
 			tc.rule.GroupID = fakeGroup.ID()
-			fq.add(tc.data...)
+			fq.Add(tc.data...)
 			gotTS, err := tc.rule.ExecRange(context.TODO(), time.Now(), time.Now())
 			if err != nil {
 				t.Fatalf("unexpected err: %s", err)
@@ -512,29 +512,29 @@ func TestAlertingRule_ExecRange(t *testing.T) {
 
 func TestGroup_Restore(t *testing.T) {
 	defaultTS := time.Now()
-	fqr := &fakeQuerierWithRegistry{}
+	fqr := &datasource.FakeQuerierWithRegistry{}
 	fn := func(rules []config.Rule, expAlerts map[uint64]*notifier.Alert) {
 		t.Helper()
-		defer fqr.reset()
+		defer fqr.Reset()
 
 		for _, r := range rules {
-			fqr.set(r.Expr, metricWithValueAndLabels(t, 0, "__name__", r.Alert))
+			fqr.Set(r.Expr, metricWithValueAndLabels(t, 0, "__name__", r.Alert))
 		}
 
-		fg := newGroup(config.Group{Name: "TestRestore", Rules: rules}, fqr, time.Second, nil)
+		fg := NewGroup(config.Group{Name: "TestRestore", Rules: rules}, fqr, time.Second, nil)
 		wg := sync.WaitGroup{}
 		wg.Add(1)
 		go func() {
-			nts := func() []notifier.Notifier { return []notifier.Notifier{&fakeNotifier{}} }
-			fg.start(context.Background(), nts, nil, fqr)
+			nts := func() []notifier.Notifier { return []notifier.Notifier{&notifier.FakeNotifier{}} }
+			fg.Start(context.Background(), nts, nil, fqr)
 			wg.Done()
 		}()
-		fg.close()
+		fg.Close()
 		wg.Wait()
 
 		gotAlerts := make(map[uint64]*notifier.Alert)
 		for _, rs := range fg.Rules {
-			alerts := rs.(*AlertingRule).alerts
+			alerts := rs.(*AlertingRule).Alerts
 			for k, v := range alerts {
 				if !v.Restored {
 					// set not restored alerts to predictable timestamp
@@ -576,11 +576,11 @@ func TestGroup_Restore(t *testing.T) {
 				ActiveAt: defaultTS,
 			},
 		})
-	fqr.reset()
+	fqr.Reset()
 
 	// one active alert with state restore
 	ts := time.Now().Truncate(time.Hour)
-	fqr.set(`last_over_time(ALERTS_FOR_STATE{alertgroup="TestRestore",alertname="foo"}[3600s])`,
+	fqr.Set(`last_over_time(ALERTS_FOR_STATE{alertgroup="TestRestore",alertname="foo"}[3600s])`,
 		stateMetric("foo", ts))
 	fn(
 		[]config.Rule{{Alert: "foo", Expr: "foo", For: promutils.NewDuration(time.Second)}},
@@ -591,7 +591,7 @@ func TestGroup_Restore(t *testing.T) {
 
 	// two rules, two active alerts, one with state restored
 	ts = time.Now().Truncate(time.Hour)
-	fqr.set(`last_over_time(ALERTS_FOR_STATE{alertgroup="TestRestore",alertname="bar"}[3600s])`,
+	fqr.Set(`last_over_time(ALERTS_FOR_STATE{alertgroup="TestRestore",alertname="bar"}[3600s])`,
 		stateMetric("foo", ts))
 	fn(
 		[]config.Rule{
@@ -608,9 +608,9 @@ func TestGroup_Restore(t *testing.T) {
 
 	// two rules, two active alerts, two with state restored
 	ts = time.Now().Truncate(time.Hour)
-	fqr.set(`last_over_time(ALERTS_FOR_STATE{alertgroup="TestRestore",alertname="foo"}[3600s])`,
+	fqr.Set(`last_over_time(ALERTS_FOR_STATE{alertgroup="TestRestore",alertname="foo"}[3600s])`,
 		stateMetric("foo", ts))
-	fqr.set(`last_over_time(ALERTS_FOR_STATE{alertgroup="TestRestore",alertname="bar"}[3600s])`,
+	fqr.Set(`last_over_time(ALERTS_FOR_STATE{alertgroup="TestRestore",alertname="bar"}[3600s])`,
 		stateMetric("bar", ts))
 	fn(
 		[]config.Rule{
@@ -627,7 +627,7 @@ func TestGroup_Restore(t *testing.T) {
 
 	// one active alert but wrong state restore
 	ts = time.Now().Truncate(time.Hour)
-	fqr.set(`last_over_time(ALERTS_FOR_STATE{alertname="bar",alertgroup="TestRestore"}[3600s])`,
+	fqr.Set(`last_over_time(ALERTS_FOR_STATE{alertname="bar",alertgroup="TestRestore"}[3600s])`,
 		stateMetric("wrong alert", ts))
 	fn(
 		[]config.Rule{{Alert: "foo", Expr: "foo", For: promutils.NewDuration(time.Second)}},
@@ -639,7 +639,7 @@ func TestGroup_Restore(t *testing.T) {
 
 	// one active alert with labels
 	ts = time.Now().Truncate(time.Hour)
-	fqr.set(`last_over_time(ALERTS_FOR_STATE{alertgroup="TestRestore",alertname="foo",env="dev"}[3600s])`,
+	fqr.Set(`last_over_time(ALERTS_FOR_STATE{alertgroup="TestRestore",alertname="foo",env="dev"}[3600s])`,
 		stateMetric("foo", ts, "env", "dev"))
 	fn(
 		[]config.Rule{{Alert: "foo", Expr: "foo", Labels: map[string]string{"env": "dev"}, For: promutils.NewDuration(time.Second)}},
@@ -651,7 +651,7 @@ func TestGroup_Restore(t *testing.T) {
 
 	// one active alert with restore labels missmatch
 	ts = time.Now().Truncate(time.Hour)
-	fqr.set(`last_over_time(ALERTS_FOR_STATE{alertgroup="TestRestore",alertname="foo",env="dev"}[3600s])`,
+	fqr.Set(`last_over_time(ALERTS_FOR_STATE{alertgroup="TestRestore",alertname="foo",env="dev"}[3600s])`,
 		stateMetric("foo", ts, "env", "dev", "team", "foo"))
 	fn(
 		[]config.Rule{{Alert: "foo", Expr: "foo", Labels: map[string]string{"env": "dev"}, For: promutils.NewDuration(time.Second)}},
@@ -663,29 +663,29 @@ func TestGroup_Restore(t *testing.T) {
 }
 
 func TestAlertingRule_Exec_Negative(t *testing.T) {
-	fq := &fakeQuerier{}
+	fq := &datasource.FakeQuerier{}
 	ar := newTestAlertingRule("test", 0)
 	ar.Labels = map[string]string{"job": "test"}
 	ar.q = fq
 
 	// successful attempt
-	fq.add(metricWithValueAndLabels(t, 1, "__name__", "foo", "job", "bar"))
+	fq.Add(metricWithValueAndLabels(t, 1, "__name__", "foo", "job", "bar"))
 	_, err := ar.Exec(context.TODO(), time.Now(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// label `job` will collide with rule extra label and will make both time series equal
-	fq.add(metricWithValueAndLabels(t, 1, "__name__", "foo", "job", "baz"))
+	fq.Add(metricWithValueAndLabels(t, 1, "__name__", "foo", "job", "baz"))
 	_, err = ar.Exec(context.TODO(), time.Now(), 0)
 	if !errors.Is(err, errDuplicate) {
 		t.Fatalf("expected to have %s error; got %s", errDuplicate, err)
 	}
 
-	fq.reset()
+	fq.Reset()
 
 	expErr := "connection reset by peer"
-	fq.setErr(errors.New(expErr))
+	fq.SetErr(errors.New(expErr))
 	_, err = ar.Exec(context.TODO(), time.Now(), 0)
 	if err == nil {
 		t.Fatalf("expected to get err; got nil")
@@ -696,7 +696,7 @@ func TestAlertingRule_Exec_Negative(t *testing.T) {
 }
 
 func TestAlertingRuleLimit(t *testing.T) {
-	fq := &fakeQuerier{}
+	fq := &datasource.FakeQuerier{}
 	ar := newTestAlertingRule("test", 0)
 	ar.Labels = map[string]string{"job": "test"}
 	ar.q = fq
@@ -728,15 +728,15 @@ func TestAlertingRuleLimit(t *testing.T) {
 		err       error
 		timestamp = time.Now()
 	)
-	fq.add(metricWithValueAndLabels(t, 1, "__name__", "foo", "job", "bar"))
-	fq.add(metricWithValueAndLabels(t, 1, "__name__", "foo", "bar", "job"))
+	fq.Add(metricWithValueAndLabels(t, 1, "__name__", "foo", "job", "bar"))
+	fq.Add(metricWithValueAndLabels(t, 1, "__name__", "foo", "bar", "job"))
 	for _, testCase := range testCases {
 		_, err = ar.Exec(context.TODO(), timestamp, testCase.limit)
 		if err != nil && !strings.EqualFold(err.Error(), testCase.err) {
 			t.Fatal(err)
 		}
 	}
-	fq.reset()
+	fq.Reset()
 }
 
 func TestAlertingRule_Template(t *testing.T) {
@@ -754,7 +754,7 @@ func TestAlertingRule_Template(t *testing.T) {
 				Annotations: map[string]string{
 					"summary": `{{ $labels.alertname }}: Too high connection number for "{{ $labels.instance }}"`,
 				},
-				alerts: make(map[uint64]*notifier.Alert),
+				Alerts: make(map[uint64]*notifier.Alert),
 			},
 			[]datasource.Metric{
 				metricWithValueAndLabels(t, 1, "instance", "foo"),
@@ -793,7 +793,7 @@ func TestAlertingRule_Template(t *testing.T) {
 					"summary":     `{{ $labels.__name__ }}: Too high connection number for "{{ $labels.instance }}"`,
 					"description": `{{ $labels.alertname}}: It is {{ $value }} connections for "{{ $labels.instance }}"`,
 				},
-				alerts: make(map[uint64]*notifier.Alert),
+				Alerts: make(map[uint64]*notifier.Alert),
 			},
 			[]datasource.Metric{
 				metricWithValueAndLabels(t, 2, "__name__", "first", "instance", "foo", alertNameLabel, "override"),
@@ -832,7 +832,7 @@ func TestAlertingRule_Template(t *testing.T) {
 				Annotations: map[string]string{
 					"summary": `Alert "{{ $labels.alertname }}({{ $labels.alertgroup }})" for instance {{ $labels.instance }}`,
 				},
-				alerts: make(map[uint64]*notifier.Alert),
+				Alerts: make(map[uint64]*notifier.Alert),
 			},
 			[]datasource.Metric{
 				metricWithValueAndLabels(t, 1,
@@ -860,19 +860,18 @@ func TestAlertingRule_Template(t *testing.T) {
 	fakeGroup := Group{Name: "TestRule_Exec"}
 	for _, tc := range testCases {
 		t.Run(tc.rule.Name, func(t *testing.T) {
-			fq := &fakeQuerier{}
+			fq := &datasource.FakeQuerier{}
 			tc.rule.GroupID = fakeGroup.ID()
 			tc.rule.q = fq
-			tc.rule.state = newRuleState(10)
-			fq.add(tc.metrics...)
+			tc.rule.State = NewRuleState(10)
+			fq.Add(tc.metrics...)
 			if _, err := tc.rule.Exec(context.TODO(), time.Now(), 0); err != nil {
 				t.Fatalf("unexpected err: %s", err)
 			}
 			for hash, expAlert := range tc.expAlerts {
-				gotAlert := tc.rule.alerts[hash]
+				gotAlert := tc.rule.Alerts[hash]
 				if gotAlert == nil {
 					t.Fatalf("alert %d is missing; labels: %v; annotations: %v", hash, expAlert.Labels, expAlert.Annotations)
-					break
 				}
 				if !reflect.DeepEqual(expAlert.Annotations, gotAlert.Annotations) {
 					t.Fatalf("expected to have annotations %#v; got %#v", expAlert.Annotations, gotAlert.Annotations)
@@ -889,9 +888,9 @@ func TestAlertsToSend(t *testing.T) {
 	ts := time.Now()
 	f := func(alerts, expAlerts []*notifier.Alert, resolveDuration, resendDelay time.Duration) {
 		t.Helper()
-		ar := &AlertingRule{alerts: make(map[uint64]*notifier.Alert)}
+		ar := &AlertingRule{Alerts: make(map[uint64]*notifier.Alert)}
 		for i, a := range alerts {
-			ar.alerts[uint64(i)] = a
+			ar.Alerts[uint64(i)] = a
 		}
 		gotAlerts := ar.alertsToSend(ts, resolveDuration, resendDelay)
 		if gotAlerts == nil && expAlerts == nil {
@@ -979,8 +978,8 @@ func newTestAlertingRule(name string, waitFor time.Duration) *AlertingRule {
 		Name:         name,
 		For:          waitFor,
 		EvalInterval: waitFor,
-		alerts:       make(map[uint64]*notifier.Alert),
-		state:        newRuleState(10),
+		Alerts:       make(map[uint64]*notifier.Alert),
+		State:        NewRuleState(10),
 	}
 	return &rule
 }

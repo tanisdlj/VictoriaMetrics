@@ -65,6 +65,9 @@ func Reload() error {
 	return cw.reload(*configPath)
 }
 
+// AlertURLGeneratorFn helps generate source link for alert
+var AlertURLGeneratorFn AlertURLGenerator
+
 var staticNotifiersFn func() []Notifier
 
 var (
@@ -84,6 +87,7 @@ var (
 //
 // Init returns an error if both mods are used.
 func Init(gen AlertURLGenerator, extLabels map[string]string, extURL string) (func() []Notifier, error) {
+	AlertURLGeneratorFn = gen
 	externalURL = extURL
 	externalLabels = extLabels
 	eu, err := url.Parse(externalURL)

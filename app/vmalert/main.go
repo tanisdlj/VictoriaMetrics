@@ -18,6 +18,7 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/notifier"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/remoteread"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/remotewrite"
+	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/rule"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/templates"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/buildinfo"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/envflag"
@@ -66,11 +67,6 @@ absolute path to all .tpl files in root.
 
 	validateTemplates   = flag.Bool("rule.validateTemplates", true, "Whether to validate annotation and label templates")
 	validateExpressions = flag.Bool("rule.validateExpressions", true, "Whether to validate rules expressions via MetricsQL engine")
-	maxResolveDuration  = flag.Duration("rule.maxResolveDuration", 0, "Limits the maximum duration for automatic alert expiration, "+
-		"which by default is 4 times evaluationInterval of the parent group.")
-	resendDelay            = flag.Duration("rule.resendDelay", 0, "Minimum amount of time to wait before resending an alert to notifier")
-	ruleUpdateEntriesLimit = flag.Int("rule.updateEntriesLimit", 20, "Defines the max number of rule's state updates stored in-memory. "+
-		"Rule's updates are available on rule's Details page and are used for debugging purposes. The number of stored updates can be overridden per rule via update_entries_limit param.")
 
 	externalURL         = flag.String("external.url", "", "External URL is used as alert's source for sent alerts to the notifier. By default, hostname is used as address.")
 	externalAlertSource = flag.String("external.alert.source", "", `External Alert Source allows to override the Source link for alerts sent to AlertManager `+
@@ -82,16 +78,10 @@ absolute path to all .tpl files in root.
 	externalLabels = flagutil.NewArrayString("external.label", "Optional label in the form 'Name=value' to add to all generated recording rules and alerts. "+
 		"Pass multiple -label flags in order to add multiple label sets.")
 
-	remoteReadLookBack = flag.Duration("remoteRead.lookback", time.Hour, "Lookback defines how far to look into past for alerts timeseries."+
-		" For example, if lookback=1h then range from now() to now()-1h will be scanned.")
 	remoteReadIgnoreRestoreErrors = flag.Bool("remoteRead.ignoreRestoreErrors", true, "Whether to ignore errors from remote storage when restoring alerts state on startup. DEPRECATED - this flag has no effect and will be removed in the next releases.")
-
-	disableAlertGroupLabel = flag.Bool("disableAlertgroupLabel", false, "Whether to disable adding group's Name as label to generated alerts and time series.")
 
 	dryRun = flag.Bool("dryRun", false, "Whether to check only config files without running vmalert. The rules file are validated. The -rule flag must be specified.")
 )
-
-var alertURLGeneratorFn notifier.AlertURLGenerator
 
 func main() {
 	// Write flags and help message to stdout, since it is easier to grep or pipe.
@@ -130,7 +120,7 @@ func main() {
 		logger.Fatalf("failed to init `external.url`: %s", err)
 	}
 
-	alertURLGeneratorFn, err = getAlertURLGenerator(eu, *externalAlertSource, *validateTemplates)
+	alertURLGeneratorFn, err := getAlertURLGenerator(eu, *externalAlertSource, *validateTemplates)
 	if err != nil {
 		logger.Fatalf("failed to init `external.alert.source`: %s", err)
 	}
@@ -165,7 +155,7 @@ func main() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	manager, err := newManager(ctx)
+	manager, err := newManager(ctx, alertURLGeneratorFn)
 	if err != nil {
 		logger.Fatalf("failed to init: %s", err)
 	}
@@ -205,7 +195,7 @@ var (
 	configTimestamp    = metrics.NewCounter(`vmalert_config_last_reload_success_timestamp_seconds`)
 )
 
-func newManager(ctx context.Context) (*manager, error) {
+func newManager(ctx context.Context, alertURLGeneratorFn notifier.AlertURLGenerator) (*manager, error) {
 	q, err := datasource.Init(nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init datasource: %w", err)
@@ -228,7 +218,7 @@ func newManager(ctx context.Context) (*manager, error) {
 		return nil, fmt.Errorf("failed to init notifier: %w", err)
 	}
 	manager := &manager{
-		groups:         make(map[uint64]*Group),
+		groups:         make(map[uint64]*rule.Group),
 		querierBuilder: q,
 		notifiers:      nts,
 		labels:         labels,
@@ -237,7 +227,9 @@ func newManager(ctx context.Context) (*manager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to init remoteWrite: %w", err)
 	}
-	manager.rw = rw
+	if rw != nil {
+		manager.rw = rw
+	}
 
 	rr, err := remoteread.Init()
 	if err != nil {
@@ -271,7 +263,7 @@ func getAlertURLGenerator(externalURL *url.URL, externalAlertSource string, vali
 	if externalAlertSource == "" {
 		return func(a notifier.Alert) string {
 			gID, aID := strconv.FormatUint(a.GroupID, 10), strconv.FormatUint(a.ID, 10)
-			return fmt.Sprintf("%s/vmalert/alert?%s=%s&%s=%s", externalURL, paramGroupID, gID, paramAlertID, aID)
+			return fmt.Sprintf("%s/vmalert/alert?%s=%s&%s=%s", externalURL, rule.ParamGroupID, gID, rule.ParamAlertID, aID)
 		}, nil
 	}
 	if validateTemplate {

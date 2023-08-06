@@ -16,6 +16,7 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmctl/backoff"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmctl/native"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmctl/remoteread"
+	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmctl/unittest"
 	"github.com/urfave/cli/v2"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmctl/influx"
@@ -290,6 +291,28 @@ func main() {
 						return cli.Exit(fmt.Errorf("cannot parse block at path=%q, blocksCount=%d, err=%w", blockPath, blocksCount, err), 1)
 					}
 					log.Printf("successfully verified block at path=%q, blockCount=%d", blockPath, blocksCount)
+					return nil
+				},
+			},
+			{
+				Name:  "rule-unittest",
+				Usage: "Run unittest for alerting and recording rules.",
+				Flags: []cli.Flag{
+					&cli.StringSliceFlag{
+						Name:     "files",
+						Usage:    "files to run unittest with.",
+						Required: true,
+					},
+					&cli.BoolFlag{
+						Name:     "disableAlertgroupLabel",
+						Usage:    "disable adding group's Name as label to generated alerts and time series.",
+						Required: false,
+					},
+				},
+				Action: func(c *cli.Context) error {
+					if failed := unittest.UnitRule(c.StringSlice("files"), c.Bool("disableAlertgroupLabel")); failed {
+						return fmt.Errorf("rule unittest failed")
+					}
 					return nil
 				},
 			},
