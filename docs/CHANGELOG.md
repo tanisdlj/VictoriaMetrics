@@ -24,8 +24,37 @@ The following `tip` changes can be tested by building VictoriaMetrics components
 
 ## tip
 
-**Update note: starting from this release, [stream aggregation](https://docs.victoriametrics.com/stream-aggregation.html) writes
-to the configured storage the following samples by default:
+* SECURITY: upgrade Go builder from Go1.20.6 to Go1.20.7. The update includes a security fix to the crypto/tls package, as well as bug fixes to the assembler and the compiler. See [the list of issues addressed in Go1.20.7](https://github.com/golang/go/issues?q=milestone%3AGo1.20.7+label%3ACherryPickApproved).
+
+* FEATURE: [MetricsQL](https://docs.victoriametrics.com/MetricsQL.html): add `share_eq_over_time(m[d], eq)` function for calculating the share (in the range `[0...1]`) of raw samples on the given lookbehind window `d`, which are equal to `eq`. See [this feature request](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4441). Thanks to @Damon07 for the [pull request](https://github.com/VictoriaMetrics/VictoriaMetrics/pull/4725).
+* FEATURE: [vmauth](https://docs.victoriametrics.com/vmauth.html): allow configuring deadline for a backend to be excluded from the rotation on errors via `-failTimeout` cmd-line flag. This feature could be useful when it is expected for backends to be not available for significant periods of time. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4415) for details. Thanks to @SunKyu for [the pull request](https://github.com/VictoriaMetrics/VictoriaMetrics/pull/4416).  
+* FEATURE: [vmalert](https://docs.victoriametrics.com/vmalert.html): remove deprecated in [v1.61.0](https://github.com/VictoriaMetrics/VictoriaMetrics/releases/tag/v1.61.0) `-rule.configCheckInterval` command-line flag. Use `-configCheckInterval` command-line flag instead.
+* FEATURE: [vmalert](https://docs.victoriametrics.com/vmalert.html): remove support of deprecated web links of `/api/v1/<groupID>/<alertID>/status` form in favour of `/api/v1/alerts?group_id=<>&alert_id=<>` links. Links of `/api/v1/<groupID>/<alertID>/status` form were deprecated in v1.79.0. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/2825) for details.
+* FEATURE: [vmctl](https://docs.victoriametrics.com/vmctl.html): allow disabling binary export API protocol via `-vm-native-disable-binary-protocol` cmd-line flag when [migrating data from VictoriaMetrics](https://docs.victoriametrics.com/vmctl.html#migrating-data-from-victoriametrics). Disabling binary protocol can be useful for deduplication of the exported data before ingestion. For this, deduplication need [to be configured](https://docs.victoriametrics.com/#deduplication) at `-vm-native-src-addr` side and `-vm-native-disable-binary-protocol` should be set on vmctl side.
+* FEATURE: [vmctl](https://docs.victoriametrics.com/vmctl.html): add support of `week` step for [time-based chunking migration](https://docs.victoriametrics.com/vmctl.html#using-time-based-chunking-of-migration). See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4738).
+* FEATURE: [vmctl](https://docs.victoriametrics.com/vmctl.html): do not add `/api/v1/read` suffix to remote read storage address defined by `--remote-read-src-addr` if a `--remote-read-disable-path-append` command-line flag is set. It allows an overriding path for remote-read API via `--remote-read-src-addr`. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4655).
+* FEATURE: [vmui](https://docs.victoriametrics.com/#vmui): add warning in query field of vmui for partial data responses. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4721).
+* FEATURE: [Official Grafana dashboards for VictoriaMetrics](https://grafana.com/orgs/victoriametrics): add `Concurrent inserts` panel to vmagent's dasbhoard. The new panel supposed to show whether the number of concurrent inserts processed by vmagent isn't reaching the limit.
+* FEATURE: [Official Grafana dashboards for VictoriaMetrics](https://grafana.com/orgs/victoriametrics): add panels for absolute Mem and CPU usage by vmalert. See related issue [here](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4627).
+* FEATURE: [Official Grafana dashboards for VictoriaMetrics](https://grafana.com/orgs/victoriametrics): correctly calculate `Bytes per point` value for single-server and cluster VM dashboards. Before, the calculation mistakenly accounted for the number of entries in indexdb in denominator, which could have shown lower values than expected.
+* FEATURE: [Alerting rules for VictoriaMetrics](https://github.com/VictoriaMetrics/VictoriaMetrics/tree/master/deployment/docker#alerts): `ConcurrentFlushesHitTheLimit` alerting rule was moved from [single-server](https://github.com/VictoriaMetrics/VictoriaMetrics/blob/master/deployment/docker/alerts.yml) and [cluster](https://github.com/VictoriaMetrics/VictoriaMetrics/blob/master/deployment/docker/alerts-cluster.yml) alerts to the [list of "health" alerts](https://github.com/VictoriaMetrics/VictoriaMetrics/blob/master/deployment/docker/alerts-health.yml) as it could be related to many VictoriaMetrics components. 
+
+* BUGFIX: [vmagent](https://docs.victoriametrics.com/vmagent.html): use local scrape timestamps for the scraped metrics unless `honor_timestamps: true` option is explicitly set at [scrape_config](https://docs.victoriametrics.com/sd_configs.html#scrape_configs). This fixes gaps for metrics collected from [cadvisor](https://github.com/google/cadvisor) or similar exporters, which export metrics with invalid timestamps. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4697) and [this comment](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4697#issuecomment-1654614799) for details. The issue has been introduced in [v1.68.0](#v1680).
+* BUGFIX: [vmbackupmanager](https://docs.victoriametrics.com/vmbackupmanager.html): fix panic when creating a backup to a local filesystem on Windows. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4704).
+
+
+## [v1.92.1](https://github.com/VictoriaMetrics/VictoriaMetrics/releases/tag/v1.92.1)
+
+Released at 2023-07-28
+
+* BUGFIX: [vmalert](https://docs.victoriametrics.com/vmalert.html): revert unit test feature for alerting and recording rules introduced in [this pull request](https://github.com/VictoriaMetrics/VictoriaMetrics/pull/4596). See the following [change](https://github.com/VictoriaMetrics/VictoriaMetrics/pull/4734).
+
+## [v1.92.0](https://github.com/VictoriaMetrics/VictoriaMetrics/releases/tag/v1.92.0)
+
+Released at 2023-07-27
+
+**Update note**: starting from this release, [stream aggregation](https://docs.victoriametrics.com/stream-aggregation.html) writes
+the following samples to the configured remote storage by default:
 
 - aggregated samples;
 - the original input samples, which match zero `match` options from the provided [config](https://docs.victoriametrics.com/stream-aggregation.html#stream-aggregation-config).
@@ -34,7 +63,9 @@ Previously only aggregated samples were written to the storage by default.
 The previous behavior can be restored in the following ways:
 
 - by passing `-streamAggr.dropInput` command-line flag to single-node VictoriaMetrics;
-- by passing `-remoteWrite.streamAggr.dropInput` command-line flag per each configured `-remoteWrite.streamAggr.config` at `vmagent`.**
+- by passing `-remoteWrite.streamAggr.dropInput` command-line flag per each configured `-remoteWrite.streamAggr.config` at `vmagent`.
+
+---
 
 * SECURITY: upgrade base docker image (alpine) from 3.18.0 to 3.18.2. See [alpine 3.18.2 release notes](https://alpinelinux.org/posts/Alpine-3.15.9-3.16.6-3.17.4-3.18.2-released.html).
 * SECURITY: upgrade Go builder from Go1.20.5 to Go1.20.6. See [the list of issues addressed in Go1.20.6](https://github.com/golang/go/issues?q=milestone%3AGo1.20.6+label%3ACherryPickApproved).
@@ -49,6 +80,7 @@ The previous behavior can be restored in the following ways:
   - `WITH (f(window, step, off) = m[window:step] offset off) f(5m, 10s, 1h)` is automatically transformed to `m[5m:10s] offset 1h`
   Thanks to @lujiajing1126 for the initial idea and [implementation](https://github.com/VictoriaMetrics/metricsql/pull/13). See [this feature request](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4025).
 * FEATURE: [vmui](https://docs.victoriametrics.com/#vmui): added a new page with the list of currently running queries. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4598) and [these docs](https://docs.victoriametrics.com/#active-queries).
+* FEATURE: [vmagent](https://docs.victoriametrics.com/vmagent.html): add support for data ingestion via [OpenTelemetry protocol](https://opentelemetry.io/docs/reference/specification/metrics/). See [these docs](https://docs.victoriametrics.com/Single-server-VictoriaMetrics.html#sending-data-via-opentelemetry), [this feature request](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/2424) and [this pull request](https://github.com/VictoriaMetrics/VictoriaMetrics/pull/2570).
 * FEATURE: [vmagent](https://docs.victoriametrics.com/vmagent.html): allow sharding outgoing time series among the configured remote storage systems. This can be useful for building horizontally scalable [stream aggregation](https://docs.victoriametrics.com/stream-aggregation.html), when samples for the same time series must be aggregated by the same `vmagent` instance at the second level. See [these docs](https://docs.victoriametrics.com/vmagent.html#sharding-among-remote-storages) and [this feature request](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4637) for details.
 * FEATURE: [vmagent](https://docs.victoriametrics.com/vmagent.html): allow configuring staleness interval in [stream aggregation](https://docs.victoriametrics.com/stream-aggregation.html) config. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4667) for details.
 * FEATURE: [vmagent](https://docs.victoriametrics.com/vmagent.html): allow specifying a list of [series selectors](https://docs.victoriametrics.com/keyConcepts.html#filtering) inside `if` option of relabeling rules. The corresponding relabeling rule is executed when at least a single series selector matches. See [these docs](https://docs.victoriametrics.com/vmagent.html#relabeling-enhancements).
@@ -66,7 +98,8 @@ The previous behavior can be restored in the following ways:
 * FEATUTE: [vmalert](https://docs.victoriametrics.com/vmalert.html): allow disabling of `step` param attached to [instant queries](https://docs.victoriametrics.com/keyConcepts.html#instant-query). This might be useful for using vmalert with datasources that to not support this param, unlike VictoriaMetrics. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4573) for details.
 * FEATUTE: [vmalert](https://docs.victoriametrics.com/vmalert.html): support option for "blackholing" alerting notifications if `-notifier.blackhole` cmd-line flag is set. Enable this flag if you want vmalert to evaluate alerting rules without sending any notifications to external receivers (eg. alertmanager). See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4122) for details. Thanks to @venkatbvc for [the pull request](https://github.com/VictoriaMetrics/VictoriaMetrics/pull/4639).
 * FEATURE: [vmalert](https://docs.victoriametrics.com/vmalert.html): add unit test for alerting and recording rules, see more [details](https://docs.victoriametrics.com/vmalert.html#unit-testing-for-rules) here. Thanks to @Haleygo for [the pull request](https://github.com/VictoriaMetrics/VictoriaMetrics/pull/4596).
-* FEATURE: [vmalert](https://docs.victoriametrics.com/vmalert.html): allow overriding default GET params for rules  with `graphite` datasource type, in the same way as it happens for `prometheus` type. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4685). 
+* FEATURE: [vmalert](https://docs.victoriametrics.com/vmalert.html): allow overriding default GET params for rules  with `graphite` datasource type, in the same way as it happens for `prometheus` type. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4685).
+* FEATUTE: [vmalert](https://docs.victoriametrics.com/vmalert.html): support `keep_firing_for` field for alerting rules. See docs updated [here](https://docs.victoriametrics.com/vmalert.html#alerting-rules) and [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4529). Thanks to @Haleygo for [the pull request](https://github.com/VictoriaMetrics/VictoriaMetrics/pull/4669).
 * FEATURE: [vmauth](https://docs.victoriametrics.com/vmauth.html): expose `vmauth_user_request_duration_seconds` and `vmauth_unauthorized_user_request_duration_seconds` summary metrics for measuring requests latency per user.
 * FEATURE: [vmbackup](https://docs.victoriametrics.com/vmbackup.html): show backup progress percentage in log during backup uploading. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4460).
 * FEATURE: [vmrestore](https://docs.victoriametrics.com/vmrestore.html): show restoring progress percentage in log during backup downloading. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4460).
@@ -86,7 +119,9 @@ The previous behavior can be restored in the following ways:
 * BUGFIX: [vmalert](https://docs.victoriametrics.com/vmalert.html): correctly calculate evaluation time for rules. Before, there was a low probability for discrepancy between actual time and rules evaluation time if evaluation interval was lower than the execution time for rules within the group.
 * BUGFIX: [vmalert](https://docs.victoriametrics.com/vmalert.html): reset evaluation timestamp after modifying group interval. Before, there could have latency on rule evaluation time.
 * BUGFIX: vmselect: fix timestamp alignment for Prometheus querying API if time argument is less than 10m from the beginning of Unix epoch.
+* BUGFIX: [vmagent](https://docs.victoriametrics.com/vmagent.html): close HTTP connections to [service discovery](https://docs.victoriametrics.com/sd_configs.html) servers when they are no longer needed. This should prevent from possible connection exhasution in some cases. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4724).
 * BUGFIX: [vmagent](https://docs.victoriametrics.com/vmagent.html): do not show [relabel debug](https://docs.victoriametrics.com/vmagent.html#relabel-debug) links at the `/targets` page when `vmagent` runs with `-promscrape.dropOriginalLabels` command-line flag, since it has no the original labels needed for relabel debug. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4597).
+* BUGFIX: vminsert: fixed decoding of label values with slash when accepting data via [pushgateway protocol](https://docs.victoriametrics.com/#how-to-import-data-in-prometheus-exposition-format). This fixes Prometheus golang client compatibility. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4692).
 * BUGFIX: [MetricsQL](https://docs.victoriametrics.com/MetricsQL.html): properly parse binary operations with reserved words on the right side such as `foo + (on{bar="baz"})`. Previously such queries could lead to panic. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4422).
 * BUGFIX: [Official Grafana dashboards for VictoriaMetrics](https://grafana.com/orgs/victoriametrics): display cache usage for all components on panel `Cache usage % by type` for cluster dashboard. Before, only vmstorage caches were shown.
 
@@ -2109,7 +2144,7 @@ in front of VictoriaMetrics. [Contact us](mailto:sales@victoriametrics.com) if y
 
 Released at 2021-01-13
 
-* FEATURE: provide a sample list of alerting rules for VictoriaMetrics components. It is available [here](https://github.com/VictoriaMetrics/VictoriaMetrics/blob/master/deployment/docker/alerts.yml).
+* FEATURE: provide a sample list of alerting rules for VictoriaMetrics components. It is available [here](https://github.com/VictoriaMetrics/VictoriaMetrics/tree/master/deployment/docker#alerts).
 * FEATURE: disable final merge for data for the previous month at the beginning of new month, since it may result in high disk IO and CPU usage. Final merge can be enabled by setting `-finalMergeDelay` command-line flag to positive duration.
 * FEATURE: add `tfirst_over_time(m[d])` and `tlast_over_time(m[d])` functions to [MetricsQL](https://docs.victoriametrics.com/MetricsQL.html) for returning timestamps for the first and the last data point in `m` over `d` duration.
 * FEATURE: add ability to pass multiple labels to `sort_by_label()` and `sort_by_label_desc()` functions. See <https://github.com/VictoriaMetrics/VictoriaMetrics/issues/992> .

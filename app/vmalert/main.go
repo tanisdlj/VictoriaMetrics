@@ -55,9 +55,6 @@ absolute path to all .tpl files in root.
  -rule.templates="dir/**/*.tpl". Includes all the .tpl files in "dir" subfolders recursively.
 `)
 
-	rulesCheckInterval = flag.Duration("rule.configCheckInterval", 0, "Interval for checking for changes in '-rule' files. "+
-		"By default, the checking is disabled. Send SIGHUP signal in order to force config check for changes. DEPRECATED - see '-configCheckInterval' instead")
-
 	configCheckInterval = flag.Duration("configCheckInterval", 0, "Interval for checking for changes in '-rule' or '-notifier.config' files. "+
 		"By default, the checking is disabled. Send SIGHUP signal in order to force config check for changes.")
 
@@ -91,12 +88,7 @@ absolute path to all .tpl files in root.
 
 	disableAlertGroupLabel = flag.Bool("disableAlertgroupLabel", false, "Whether to disable adding group's Name as label to generated alerts and time series.")
 
-	dryRun        = flag.Bool("dryRun", false, "Whether to check only config files without running vmalert. The rules file are validated. The -rule flag must be specified.")
-	unitTestFiles = flagutil.NewArrayString("unittestFile", `Path to the unit test files. When set, vmalert starts in unit test mode and performs only tests on configured files.
-Examples:
- -unittestFile="./unittest/testdata/test1.yaml,./unittest/testdata/test2.yaml".
-See more information here https://docs.victoriametrics.com/vmalert.html#unit-testing-for-rules.
-`)
+	dryRun = flag.Bool("dryRun", false, "Whether to check only config files without running vmalert. The rules file are validated. The -rule flag must be specified.")
 )
 
 var alertURLGeneratorFn notifier.AlertURLGenerator
@@ -120,13 +112,6 @@ func main() {
 	err := templates.Load(*ruleTemplatesPath, true)
 	if err != nil {
 		logger.Fatalf("failed to parse %q: %s", *ruleTemplatesPath, err)
-	}
-
-	if len(*unitTestFiles) > 0 {
-		if unitRule(*unitTestFiles...) {
-			os.Exit(1)
-		}
-		os.Exit(0)
 	}
 
 	if *dryRun {
@@ -323,10 +308,6 @@ See the docs at https://docs.victoriametrics.com/vmalert.html .
 func configReload(ctx context.Context, m *manager, groupsCfg []config.Group, sighupCh <-chan os.Signal) {
 	var configCheckCh <-chan time.Time
 	checkInterval := *configCheckInterval
-	if checkInterval == 0 && *rulesCheckInterval > 0 {
-		logger.Warnf("flag `rule.configCheckInterval` is deprecated - use `configCheckInterval` instead")
-		checkInterval = *rulesCheckInterval
-	}
 	if checkInterval > 0 {
 		ticker := time.NewTicker(checkInterval)
 		configCheckCh = ticker.C
