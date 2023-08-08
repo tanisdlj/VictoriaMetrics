@@ -256,7 +256,7 @@ func getAuthConfig(argIdx int) (*promauth.Config, error) {
 		TLSConfig:       tlsCfg,
 		Headers:         hdrs,
 	}
-	authCfg, err := opts.NewConfig(false)
+	authCfg, err := opts.NewConfig()
 	if err != nil {
 		return nil, fmt.Errorf("cannot populate auth config for remoteWrite idx: %d, err: %w", argIdx, err)
 	}

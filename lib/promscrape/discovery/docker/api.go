@@ -42,11 +42,11 @@ func newAPIConfig(sdc *SDConfig, baseDir string) (*apiConfig, error) {
 	if cfg.port == 0 {
 		cfg.port = 80
 	}
-	ac, err := sdc.HTTPClientConfig.NewConfig(baseDir, false)
+	ac, err := sdc.HTTPClientConfig.NewConfig(baseDir)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse auth config: %w", err)
 	}
-	proxyAC, err := sdc.ProxyClientConfig.NewConfig(baseDir, false)
+	proxyAC, err := sdc.ProxyClientConfig.NewConfig(baseDir)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse proxy auth config: %w", err)
 	}

@@ -137,7 +137,7 @@ func TestNewConfig(t *testing.T) {
 				mock := httptest.NewServer(r)
 				tt.opts.OAuth2.TokenURL = mock.URL
 			}
-			got, err := tt.opts.NewConfig(tt.syntaxCheckOnly)
+			got, err := tt.opts.NewConfigCheckSyntax(tt.syntaxCheckOnly)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewConfig() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -207,7 +207,7 @@ func TestConfigHeaders(t *testing.T) {
 		opts := Options{
 			Headers: headers,
 		}
-		c, err := opts.NewConfig(false)
+		c, err := opts.NewConfig()
 		if err != nil {
 			t.Fatalf("cannot create config: %s", err)
 		}

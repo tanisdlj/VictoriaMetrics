@@ -89,7 +89,7 @@ func newAPIConfig(sdc *SDConfig, baseDir string) (*apiConfig, error) {
 			BaseDir:   baseDir,
 			TLSConfig: sdc.TLSConfig,
 		}
-		ac, err := opts.NewConfig(false)
+		ac, err := opts.NewConfig()
 		if err != nil {
 			cfg.client.CloseIdleConnections()
 			return nil, err

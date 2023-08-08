@@ -63,8 +63,6 @@ func testSanitizeLabelName() error {
 	if err := f("foo", "foo"); err != nil {
 		return err
 	}
-	if err := f("foo-bar/baz", "foo_bar_baz"); err != nil {
-		return err
-	}
-	return nil
+	err := f("foo-bar/baz", "foo_bar_baz")
+	return err
 }

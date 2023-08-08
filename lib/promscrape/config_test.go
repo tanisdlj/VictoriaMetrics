@@ -167,7 +167,7 @@ func TestLoadStaticConfigs(t *testing.T) {
 }
 
 func TestLoadConfig(t *testing.T) {
-	cfg, data, err := loadConfig("testdata/prometheus.yml", false)
+	cfg, data, err := loadConfig("testdata/prometheus.yml")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -178,7 +178,7 @@ func TestLoadConfig(t *testing.T) {
 		t.Fatalf("expecting non-nil data")
 	}
 
-	cfg, data, err = loadConfig("testdata/prometheus-with-scrape-config-files.yml", false)
+	cfg, data, err = loadConfig("testdata/prometheus-with-scrape-config-files.yml")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -190,7 +190,7 @@ func TestLoadConfig(t *testing.T) {
 	}
 
 	// Try loading non-existing file
-	cfg, data, err = loadConfig("testdata/non-existing-file", false)
+	cfg, data, err = loadConfig("testdata/non-existing-file")
 	if err == nil {
 		t.Fatalf("expecting non-nil error")
 	}
@@ -202,7 +202,7 @@ func TestLoadConfig(t *testing.T) {
 	}
 
 	// Try loading invalid file
-	cfg, data, err = loadConfig("testdata/file_sd_1.yml", false)
+	cfg, data, err = loadConfig("testdata/file_sd_1.yml")
 	if err == nil {
 		t.Fatalf("expecting non-nil error")
 	}
@@ -1178,14 +1178,14 @@ scrape_configs:
 	opts := &promauth.Options{
 		Headers: []string{"My-Auth: foo-Bar"},
 	}
-	ac, err := opts.NewConfig(false)
+	ac, err := opts.NewConfig()
 	if err != nil {
 		t.Fatalf("unexpected error when creating promauth.Config: %s", err)
 	}
 	opts = &promauth.Options{
 		Headers: []string{"Foo:bar"},
 	}
-	proxyAC, err := opts.NewConfig(false)
+	proxyAC, err := opts.NewConfig()
 	if err != nil {
 		t.Fatalf("unexpected error when creating promauth.Config for proxy: %s", err)
 	}

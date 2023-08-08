@@ -53,7 +53,7 @@ func CheckConfig(syntaxCheckOnly bool) error {
 	if *promscrapeConfigFile == "" {
 		return nil
 	}
-	_, _, err := loadConfig(*promscrapeConfigFile, syntaxCheckOnly)
+	_, _, err := loadConfigWithCheck(*promscrapeConfigFile, syntaxCheckOnly)
 	return err
 }
 
@@ -111,7 +111,7 @@ func runScraper(configFile string, pushData func(at *auth.Token, wr *prompbmarsh
 	sighupCh := procutil.NewSighupChan()
 
 	logger.Infof("reading Prometheus configs from %q", configFile)
-	cfg, data, err := loadConfig(configFile, false)
+	cfg, data, err := loadConfig(configFile)
 	if err != nil {
 		logger.Fatalf("cannot read %q: %s", configFile, err)
 	}
@@ -154,7 +154,7 @@ func runScraper(configFile string, pushData func(at *auth.Token, wr *prompbmarsh
 		select {
 		case <-sighupCh:
 			logger.Infof("SIGHUP received; reloading Prometheus configs from %q", configFile)
-			cfgNew, dataNew, err := loadConfig(configFile, false)
+			cfgNew, dataNew, err := loadConfig(configFile)
 			if err != nil {
 				configReloadErrors.Inc()
 				configSuccess.Set(0)
@@ -172,7 +172,7 @@ func runScraper(configFile string, pushData func(at *auth.Token, wr *prompbmarsh
 			marshaledData = cfgNew.marshal()
 			configData.Store(&marshaledData)
 		case <-tickerCh:
-			cfgNew, dataNew, err := loadConfig(configFile, false)
+			cfgNew, dataNew, err := loadConfig(configFile)
 			if err != nil {
 				configReloadErrors.Inc()
 				configSuccess.Set(0)

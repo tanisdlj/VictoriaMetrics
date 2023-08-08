@@ -218,7 +218,7 @@ func newOAuth2ConfigInternal(baseDir string, o *OAuth2Config, syntaxCheckOnly bo
 		BaseDir:   baseDir,
 		TLSConfig: o.TLSConfig,
 	}
-	ac, err := opts.NewConfig(syntaxCheckOnly)
+	ac, err := opts.NewConfigCheckSyntax(syntaxCheckOnly)
 	if err != nil {
 		return nil, fmt.Errorf("cannot initialize TLS config for OAuth2: %w", err)
 	}
@@ -421,7 +421,14 @@ func (ac *Config) NewTLSConfig() *tls.Config {
 }
 
 // NewConfig creates auth config for the given hcc.
-func (hcc *HTTPClientConfig) NewConfig(baseDir string, syntaxCheckOnly bool) (*Config, error) {
+func (hcc *HTTPClientConfig) NewConfig(baseDir string) (*Config, error) {
+	return hcc.NewConfigWithCheck(baseDir, false)
+}
+
+// NewConfigWithCheck will only check the config file syntax,
+// ignoring file and content validation referenced in the config
+// if syntaxCheckOnly is true.
+func (hcc *HTTPClientConfig) NewConfigWithCheck(baseDir string, syntaxCheckOnly bool) (*Config, error) {
 	opts := &Options{
 		BaseDir:         baseDir,
 		Authorization:   hcc.Authorization,
@@ -432,11 +439,18 @@ func (hcc *HTTPClientConfig) NewConfig(baseDir string, syntaxCheckOnly bool) (*C
 		TLSConfig:       hcc.TLSConfig,
 		Headers:         hcc.Headers,
 	}
-	return opts.NewConfig(syntaxCheckOnly)
+	return opts.NewConfigCheckSyntax(syntaxCheckOnly)
 }
 
 // NewConfig creates auth config for the given pcc.
-func (pcc *ProxyClientConfig) NewConfig(baseDir string, syntaxCheckOnly bool) (*Config, error) {
+func (pcc *ProxyClientConfig) NewConfig(baseDir string) (*Config, error) {
+	return pcc.NewConfigWithCheck(baseDir, false)
+}
+
+// NewConfigWithCheck will only check the config file syntax,
+// ignoring file and content validation referenced in the config
+// if syntaxCheckOnly is true.
+func (pcc *ProxyClientConfig) NewConfigWithCheck(baseDir string, syntaxCheckOnly bool) (*Config, error) {
 	opts := &Options{
 		BaseDir:         baseDir,
 		Authorization:   pcc.Authorization,
@@ -447,16 +461,23 @@ func (pcc *ProxyClientConfig) NewConfig(baseDir string, syntaxCheckOnly bool) (*
 		TLSConfig:       pcc.TLSConfig,
 		Headers:         pcc.Headers,
 	}
-	return opts.NewConfig(syntaxCheckOnly)
+	return opts.NewConfigCheckSyntax(syntaxCheckOnly)
 }
 
 // NewConfig creates auth config for the given ba.
-func (ba *BasicAuthConfig) NewConfig(baseDir string, syntaxCheckOnly bool) (*Config, error) {
+func (ba *BasicAuthConfig) NewConfig(baseDir string) (*Config, error) {
+	return ba.NewConfigWithCheck(baseDir, false)
+}
+
+// NewConfigWithCheck will only check the config file syntax,
+// ignoring file and content validation referenced in the config
+// if syntaxCheckOnly is true.
+func (ba *BasicAuthConfig) NewConfigWithCheck(baseDir string, syntaxCheckOnly bool) (*Config, error) {
 	opts := &Options{
 		BaseDir:   baseDir,
 		BasicAuth: ba,
 	}
-	return opts.NewConfig(syntaxCheckOnly)
+	return opts.NewConfigCheckSyntax(syntaxCheckOnly)
 }
 
 // Options contain options, which must be passed to NewConfig.
@@ -490,7 +511,14 @@ type Options struct {
 }
 
 // NewConfig creates auth config from the given opts.
-func (opts *Options) NewConfig(syntaxCheckOnly bool) (*Config, error) {
+func (opts *Options) NewConfig() (*Config, error) {
+	return opts.NewConfigCheckSyntax(false)
+}
+
+// NewConfigCheckSyntax creates auth config from the given opts,
+// will only check the config file syntax, ignoring file and content validation referenced in the config
+// if syntaxCheckOnly is true.
+func (opts *Options) NewConfigCheckSyntax(syntaxCheckOnly bool) (*Config, error) {
 	baseDir := opts.BaseDir
 	if baseDir == "" {
 		baseDir = "."

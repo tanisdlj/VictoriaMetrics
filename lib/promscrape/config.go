@@ -395,7 +395,14 @@ func loadStaticConfigs(path string) ([]StaticConfig, error) {
 }
 
 // loadConfig loads Prometheus config from the given path.
-func loadConfig(path string, syntaxCheckOnly bool) (*Config, []byte, error) {
+func loadConfig(path string) (*Config, []byte, error) {
+	return loadConfigWithCheck(path, false)
+}
+
+// loadConfigWithCheck will only check the config file syntax,
+// ignoring file and content validation referenced in the config
+// if syntaxCheckOnly is true.
+func loadConfigWithCheck(path string, syntaxCheckOnly bool) (*Config, []byte, error) {
 	data, err := fs.ReadFileOrHTTP(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot read Prometheus config from %q: %w", path, err)
@@ -1019,11 +1026,11 @@ func getScrapeWorkConfig(sc *ScrapeConfig, baseDir string, globalCfg *GlobalConf
 		return nil, fmt.Errorf("unexpected `scheme` for `job_name` %q: %q; supported values: http or https", jobName, scheme)
 	}
 	params := sc.Params
-	ac, err := sc.HTTPClientConfig.NewConfig(baseDir, syntaxCheckOnly)
+	ac, err := sc.HTTPClientConfig.NewConfigWithCheck(baseDir, syntaxCheckOnly)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse auth config for `job_name` %q: %w", jobName, err)
 	}
-	proxyAC, err := sc.ProxyClientConfig.NewConfig(baseDir, syntaxCheckOnly)
+	proxyAC, err := sc.ProxyClientConfig.NewConfigWithCheck(baseDir, syntaxCheckOnly)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse proxy auth config for `job_name` %q: %w", jobName, err)
 	}
