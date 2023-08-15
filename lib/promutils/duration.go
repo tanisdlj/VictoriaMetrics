@@ -19,7 +19,7 @@ func NewDuration(d time.Duration) *Duration {
 }
 
 // MarshalYAML implements yaml.Marshaler interface.
-func (pd Duration) MarshalYAML() (interface{}, error) {
+func (pd *Duration) MarshalYAML() (interface{}, error) {
 	return pd.D.String(), nil
 }
 
