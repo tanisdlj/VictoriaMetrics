@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,10 +38,10 @@ var (
 
 // Group is an entity for grouping rules
 type Group struct {
-	mu             sync.RWMutex
+	Mu             sync.RWMutex
 	Name           string
 	File           string
-	Rules          []Rule
+	Rules          []rule
 	Type           config.Type
 	Interval       time.Duration
 	Limit          int
@@ -81,9 +80,9 @@ func newGroupMetrics(g *Group) *groupMetrics {
 	m.iterationDuration = utils.GetOrCreateSummary(fmt.Sprintf(`vmalert_iteration_duration_seconds{%s}`, labels))
 	m.iterationMissed = utils.GetOrCreateCounter(fmt.Sprintf(`vmalert_iteration_missed_total{%s}`, labels))
 	m.iterationInterval = utils.GetOrCreateGauge(fmt.Sprintf(`vmalert_iteration_interval_seconds{%s}`, labels), func() float64 {
-		g.mu.RLock()
+		g.Mu.RLock()
 		i := g.Interval.Seconds()
-		g.mu.RUnlock()
+		g.Mu.RUnlock()
 		return i
 	})
 	return m
@@ -138,7 +137,7 @@ func NewGroup(cfg config.Group, qb datasource.QuerierBuilder, defaultInterval ti
 		g.NotifierHeaders[h.Key] = h.Value
 	}
 	g.metrics = newGroupMetrics(g)
-	rules := make([]Rule, len(cfg.Rules))
+	rules := make([]rule, len(cfg.Rules))
 	for i, r := range cfg.Rules {
 		var extraLabels map[string]string
 		// apply external labels
@@ -160,18 +159,18 @@ func NewGroup(cfg config.Group, qb datasource.QuerierBuilder, defaultInterval ti
 	return g
 }
 
-func (g *Group) newRule(qb datasource.QuerierBuilder, rule config.Rule) Rule {
-	if rule.Alert != "" {
-		return newAlertingRule(qb, g, rule)
+func (g *Group) newRule(qb datasource.QuerierBuilder, r config.Rule) rule {
+	if r.Alert != "" {
+		return newAlertingRule(qb, g, r)
 	}
-	return newRecordingRule(qb, g, rule)
+	return newRecordingRule(qb, g, r)
 }
 
 // ID return unique group ID that consists of
 // rules file and group Name
 func (g *Group) ID() uint64 {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
+	g.Mu.RLock()
+	defer g.Mu.RUnlock()
 
 	hash := fnv.New64a()
 	hash.Write([]byte(g.File))
@@ -211,7 +210,7 @@ func (g *Group) Restore(ctx context.Context, qb datasource.QuerierBuilder, ts ti
 // in group.Start function.
 // Not thread-safe.
 func (g *Group) updateWith(newGroup *Group) error {
-	rulesRegistry := make(map[uint64]Rule)
+	rulesRegistry := make(map[uint64]rule)
 	for _, nr := range newGroup.Rules {
 		rulesRegistry[nr.ID()] = nr
 	}
@@ -221,17 +220,17 @@ func (g *Group) updateWith(newGroup *Group) error {
 		if !ok {
 			// old rule is not present in the new list
 			// so we mark it for removing
-			g.Rules[i].Close()
+			g.Rules[i].close()
 			g.Rules[i] = nil
 			continue
 		}
-		if err := or.UpdateWith(nr); err != nil {
+		if err := or.updateWith(nr); err != nil {
 			return err
 		}
 		delete(rulesRegistry, nr.ID())
 	}
 
-	var newRules []Rule
+	var newRules []rule
 	for _, r := range g.Rules {
 		if r == nil {
 			// skip nil rules
@@ -262,8 +261,8 @@ func (g *Group) updateWith(newGroup *Group) error {
 // within the group. It is expected that g.evalCancel
 // will be repopulated after the call.
 func (g *Group) InterruptEval() {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
+	g.Mu.RLock()
+	defer g.Mu.RUnlock()
 
 	if g.evalCancel != nil {
 		g.evalCancel()
@@ -284,7 +283,7 @@ func (g *Group) Close() {
 	g.metrics.iterationMissed.Unregister()
 	g.metrics.iterationInterval.Unregister()
 	for _, rule := range g.Rules {
-		rule.Close()
+		rule.close()
 	}
 }
 
@@ -349,9 +348,9 @@ func (g *Group) Start(ctx context.Context, nts func() []notifier.Notifier, rw re
 	}
 
 	evalCtx, cancel := context.WithCancel(ctx)
-	g.mu.Lock()
+	g.Mu.Lock()
 	g.evalCancel = cancel
-	g.mu.Unlock()
+	g.Mu.Unlock()
 	defer g.evalCancel()
 
 	eval(evalCtx, evalTS)
@@ -377,7 +376,7 @@ func (g *Group) Start(ctx context.Context, nts func() []notifier.Notifier, rw re
 			logger.Infof("group %q: received stop signal", g.Name)
 			return
 		case ng := <-g.UpdateCh:
-			g.mu.Lock()
+			g.Mu.Lock()
 
 			// it is expected that g.evalCancel will be evoked
 			// somewhere else to unblock group from the rules evaluation.
@@ -389,7 +388,7 @@ func (g *Group) Start(ctx context.Context, nts func() []notifier.Notifier, rw re
 			err := g.updateWith(ng)
 			if err != nil {
 				logger.Errorf("group %q: failed to update: %s", g.Name, err)
-				g.mu.Unlock()
+				g.Mu.Unlock()
 				continue
 			}
 
@@ -404,7 +403,7 @@ func (g *Group) Start(ctx context.Context, nts func() []notifier.Notifier, rw re
 				t = time.NewTicker(g.Interval)
 				evalTS = time.Now()
 			}
-			g.mu.Unlock()
+			g.Mu.Unlock()
 			logger.Infof("group %q re-started; interval=%v; concurrency=%d", g.Name, g.Interval, g.Concurrency)
 		case <-t.C:
 			missed := (time.Since(evalTS) / g.Interval) - 1
@@ -465,15 +464,15 @@ func (g *Group) Replay(start, end time.Time, rw remotewrite.RWClient, maxDataPoi
 	return total
 }
 
-func replayRule(rule Rule, start, end time.Time, rw remotewrite.RWClient, replayRuleRetryAttempts int) (int, error) {
+func replayRule(r rule, start, end time.Time, rw remotewrite.RWClient, replayRuleRetryAttempts int) (int, error) {
 	var err error
 	var tss []prompbmarshal.TimeSeries
 	for i := 0; i < replayRuleRetryAttempts; i++ {
-		tss, err = rule.ExecRange(context.Background(), start, end)
+		tss, err = r.execRange(context.Background(), start, end)
 		if err == nil {
 			break
 		}
-		logger.Errorf("attempt %d to execute rule %q failed: %s", i+1, rule, err)
+		logger.Errorf("attempt %d to execute rule %q failed: %s", i+1, r, err)
 		time.Sleep(time.Second)
 	}
 	if err != nil { // means all attempts failed
@@ -547,7 +546,7 @@ type Executor struct {
 }
 
 // ExecConcurrently executes rules concurrently if concurrency>1
-func (e *Executor) ExecConcurrently(ctx context.Context, rules []Rule, ts time.Time, concurrency int, resolveDuration time.Duration, limit int) chan error {
+func (e *Executor) ExecConcurrently(ctx context.Context, rules []rule, ts time.Time, concurrency int, resolveDuration time.Duration, limit int) chan error {
 	res := make(chan error, len(rules))
 	if concurrency == 1 {
 		// fast path
@@ -561,14 +560,14 @@ func (e *Executor) ExecConcurrently(ctx context.Context, rules []Rule, ts time.T
 	sem := make(chan struct{}, concurrency)
 	go func() {
 		wg := sync.WaitGroup{}
-		for _, rule := range rules {
+		for _, r := range rules {
 			sem <- struct{}{}
 			wg.Add(1)
-			go func(r Rule) {
+			go func(r rule) {
 				res <- e.exec(ctx, r, ts, resolveDuration, limit)
 				<-sem
 				wg.Done()
-			}(rule)
+			}(r)
 		}
 		wg.Wait()
 		close(res)
@@ -586,10 +585,10 @@ var (
 	remoteWriteTotal  = metrics.NewCounter(`vmalert_remotewrite_total`)
 )
 
-func (e *Executor) exec(ctx context.Context, rule Rule, ts time.Time, resolveDuration time.Duration, limit int) error {
+func (e *Executor) exec(ctx context.Context, r rule, ts time.Time, resolveDuration time.Duration, limit int) error {
 	execTotal.Inc()
 
-	tss, err := rule.Exec(ctx, ts, limit)
+	tss, err := r.exec(ctx, ts, limit)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			// the context can be cancelled on graceful shutdown
@@ -597,7 +596,7 @@ func (e *Executor) exec(ctx context.Context, rule Rule, ts time.Time, resolveDur
 			return nil
 		}
 		execErrors.Inc()
-		return fmt.Errorf("rule %q: failed to execute: %w", rule, err)
+		return fmt.Errorf("rule %q: failed to execute: %w", r, err)
 	}
 
 	if e.Rw != nil {
@@ -607,7 +606,7 @@ func (e *Executor) exec(ctx context.Context, rule Rule, ts time.Time, resolveDur
 				remoteWriteTotal.Inc()
 				if err := e.Rw.Push(ts); err != nil {
 					remoteWriteErrors.Inc()
-					lastErr = fmt.Errorf("rule %q: remote write failure: %w", rule, err)
+					lastErr = fmt.Errorf("rule %q: remote write failure: %w", r, err)
 				}
 			}
 			return lastErr
@@ -616,13 +615,13 @@ func (e *Executor) exec(ctx context.Context, rule Rule, ts time.Time, resolveDur
 			return err
 		}
 
-		staleSeries := e.getStaleSeries(rule, tss, ts)
+		staleSeries := e.getStaleSeries(r, tss, ts)
 		if err := pushToRW(staleSeries); err != nil {
 			return err
 		}
 	}
 
-	ar, ok := rule.(*AlertingRule)
+	ar, ok := r.(*AlertingRule)
 	if !ok {
 		return nil
 	}
@@ -638,7 +637,7 @@ func (e *Executor) exec(ctx context.Context, rule Rule, ts time.Time, resolveDur
 		wg.Add(1)
 		go func(nt notifier.Notifier) {
 			if err := nt.Send(ctx, alerts, e.notifierHeaders); err != nil {
-				errGr.Add(fmt.Errorf("rule %q: failed to send alerts to addr %q: %w", rule, nt.Addr(), err))
+				errGr.Add(fmt.Errorf("rule %q: failed to send alerts to addr %q: %w", r, nt.Addr(), err))
 			}
 			wg.Done()
 		}(nt)
@@ -648,7 +647,7 @@ func (e *Executor) exec(ctx context.Context, rule Rule, ts time.Time, resolveDur
 }
 
 // getStaledSeries checks whether there are stale series from previously sent ones.
-func (e *Executor) getStaleSeries(rule Rule, tss []prompbmarshal.TimeSeries, timestamp time.Time) []prompbmarshal.TimeSeries {
+func (e *Executor) getStaleSeries(r rule, tss []prompbmarshal.TimeSeries, timestamp time.Time) []prompbmarshal.TimeSeries {
 	ruleLabels := make(map[string][]prompbmarshal.Label, len(tss))
 	for _, ts := range tss {
 		// convert labels to strings so we can compare with previously sent series
@@ -656,7 +655,7 @@ func (e *Executor) getStaleSeries(rule Rule, tss []prompbmarshal.TimeSeries, tim
 		ruleLabels[key] = ts.Labels
 	}
 
-	rID := rule.ID()
+	rID := r.ID()
 	var staleS []prompbmarshal.TimeSeries
 	// check whether there are series which disappeared and need to be marked as stale
 	e.previouslySentSeriesToRWMu.Lock()
@@ -680,7 +679,7 @@ func (e *Executor) getStaleSeries(rule Rule, tss []prompbmarshal.TimeSeries, tim
 // in the given activeRules list. The method is used when the list
 // of loaded rules has changed and executor has to remove
 // references to non-existing rules.
-func (e *Executor) purgeStaleSeries(activeRules []Rule) {
+func (e *Executor) purgeStaleSeries(activeRules []rule) {
 	newPreviouslySentSeriesToRW := make(map[uint64]map[string][]prompbmarshal.Label)
 
 	e.previouslySentSeriesToRWMu.Lock()
@@ -716,73 +715,4 @@ func labelsToString(labels []prompbmarshal.Label) string {
 	}
 	b.WriteRune('}')
 	return b.String()
-}
-
-// ToAPI returns Group representation in form of APIGroup
-func (g *Group) ToAPI() APIGroup {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-
-	ag := APIGroup{
-		// encode as string to avoid rounding
-		ID: fmt.Sprintf("%d", g.ID()),
-
-		Name:            g.Name,
-		Type:            g.Type.String(),
-		File:            g.File,
-		Interval:        g.Interval.Seconds(),
-		LastEvaluation:  g.LastEvaluation,
-		Concurrency:     g.Concurrency,
-		Params:          urlValuesToStrings(g.Params),
-		Headers:         headersToStrings(g.Headers),
-		NotifierHeaders: headersToStrings(g.NotifierHeaders),
-
-		Labels: g.Labels,
-	}
-	ag.Rules = make([]APIRule, 0)
-	for _, r := range g.Rules {
-		ag.Rules = append(ag.Rules, r.ToAPI())
-	}
-	return ag
-}
-
-func urlValuesToStrings(values url.Values) []string {
-	if len(values) < 1 {
-		return nil
-	}
-
-	keys := make([]string, 0, len(values))
-	for k := range values {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var res []string
-	for _, k := range keys {
-		params := values[k]
-		for _, v := range params {
-			res = append(res, fmt.Sprintf("%s=%s", k, v))
-		}
-	}
-	return res
-}
-
-func headersToStrings(headers map[string]string) []string {
-	if len(headers) < 1 {
-		return nil
-	}
-
-	keys := make([]string, 0, len(headers))
-	for k := range headers {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var res []string
-	for _, k := range keys {
-		v := headers[k]
-		res = append(res, fmt.Sprintf("%s: %s", k, v))
-	}
-
-	return res
 }

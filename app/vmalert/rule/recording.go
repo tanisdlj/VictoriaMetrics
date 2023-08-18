@@ -75,7 +75,7 @@ func newRecordingRule(qb datasource.QuerierBuilder, group *Group, cfg config.Rul
 	labels := fmt.Sprintf(`recording=%q, group=%q, id="%d"`, rr.Name, group.Name, rr.ID())
 	rr.metrics.errors = utils.GetOrCreateGauge(fmt.Sprintf(`vmalert_recording_rules_error{%s}`, labels),
 		func() float64 {
-			e := rr.State.getLast()
+			e := rr.State.GetLast()
 			if e.Err == nil {
 				return 0
 			}
@@ -83,22 +83,22 @@ func newRecordingRule(qb datasource.QuerierBuilder, group *Group, cfg config.Rul
 		})
 	rr.metrics.samples = utils.GetOrCreateGauge(fmt.Sprintf(`vmalert_recording_rules_last_evaluation_samples{%s}`, labels),
 		func() float64 {
-			e := rr.State.getLast()
+			e := rr.State.GetLast()
 			return float64(e.Samples)
 		})
 	return rr
 }
 
-// Close unregisters rule metrics
-func (rr *RecordingRule) Close() {
+// close unregisters rule metrics
+func (rr *RecordingRule) close() {
 	rr.metrics.errors.Unregister()
 	rr.metrics.samples.Unregister()
 }
 
-// ExecRange executes recording rule on the given time range similarly to Exec.
+// execRange executes recording rule on the given time range similarly to Exec.
 // It doesn't update internal states of the Rule and meant to be used just
 // to get time series for backfilling.
-func (rr *RecordingRule) ExecRange(ctx context.Context, start, end time.Time) ([]prompbmarshal.TimeSeries, error) {
+func (rr *RecordingRule) execRange(ctx context.Context, start, end time.Time) ([]prompbmarshal.TimeSeries, error) {
 	res, err := rr.q.QueryRange(ctx, rr.Expr, start, end)
 	if err != nil {
 		return nil, err
@@ -117,8 +117,8 @@ func (rr *RecordingRule) ExecRange(ctx context.Context, start, end time.Time) ([
 	return tss, nil
 }
 
-// Exec executes RecordingRule expression via the given Querier.
-func (rr *RecordingRule) Exec(ctx context.Context, ts time.Time, limit int) ([]prompbmarshal.TimeSeries, error) {
+// exec executes RecordingRule expression via the given Querier.
+func (rr *RecordingRule) exec(ctx context.Context, ts time.Time, limit int) ([]prompbmarshal.TimeSeries, error) {
 	start := time.Now()
 	res, req, err := rr.q.Query(ctx, rr.Expr, ts)
 	curState := StateEntry{
@@ -193,8 +193,8 @@ func (rr *RecordingRule) toTimeSeries(m datasource.Metric) prompbmarshal.TimeSer
 	return newTimeSeries(m.Values, m.Timestamps, labels)
 }
 
-// UpdateWith copies all significant fields.
-func (rr *RecordingRule) UpdateWith(r Rule) error {
+// updateWith copies all significant fields.
+func (rr *RecordingRule) updateWith(r rule) error {
 	nr, ok := r.(*RecordingRule)
 	if !ok {
 		return fmt.Errorf("BUG: attempt to update recroding rule with wrong type %#v", r)
@@ -203,33 +203,4 @@ func (rr *RecordingRule) UpdateWith(r Rule) error {
 	rr.Labels = nr.Labels
 	rr.q = nr.q
 	return nil
-}
-
-// ToAPI returns Rule's representation in form
-// of APIRule
-func (rr *RecordingRule) ToAPI() APIRule {
-	lastState := rr.State.getLast()
-	r := APIRule{
-		Type:              "recording",
-		DatasourceType:    rr.Type.String(),
-		Name:              rr.Name,
-		Query:             rr.Expr,
-		Labels:            rr.Labels,
-		LastEvaluation:    lastState.Time,
-		EvaluationTime:    lastState.Duration.Seconds(),
-		Health:            "ok",
-		LastSamples:       lastState.Samples,
-		LastSeriesFetched: lastState.SeriesFetched,
-		MaxUpdates:        rr.State.size(),
-		Updates:           rr.State.getAll(),
-
-		// encode as strings to avoid rounding
-		ID:      fmt.Sprintf("%d", rr.ID()),
-		GroupID: fmt.Sprintf("%d", rr.GroupID),
-	}
-	if lastState.Err != nil {
-		r.LastError = lastState.Err.Error()
-		r.Health = "err"
-	}
-	return r
 }

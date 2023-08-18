@@ -8,7 +8,7 @@ import (
 
 func TestRule_stateDisabled(t *testing.T) {
 	state := NewRuleState(-1)
-	e := state.getLast()
+	e := state.GetLast()
 	if !e.At.IsZero() {
 		t.Fatalf("expected entry to be zero")
 	}
@@ -17,17 +17,17 @@ func TestRule_stateDisabled(t *testing.T) {
 	state.Add(StateEntry{At: time.Now()})
 	state.Add(StateEntry{At: time.Now()})
 
-	if len(state.getAll()) != 1 {
+	if len(state.GetAll()) != 1 {
 		// state should store at least one update at any circumstances
 		t.Fatalf("expected for state to have %d entries; got %d",
-			1, len(state.getAll()),
+			1, len(state.GetAll()),
 		)
 	}
 }
 func TestRule_state(t *testing.T) {
 	stateEntriesN := 20
 	state := NewRuleState(stateEntriesN)
-	e := state.getLast()
+	e := state.GetLast()
 	if !e.At.IsZero() {
 		t.Fatalf("expected entry to be zero")
 	}
@@ -35,7 +35,7 @@ func TestRule_state(t *testing.T) {
 	now := time.Now()
 	state.Add(StateEntry{At: now})
 
-	e = state.getLast()
+	e = state.GetLast()
 	if e.At != now {
 		t.Fatalf("expected entry at %v to be equal to %v",
 			e.At, now)
@@ -45,15 +45,15 @@ func TestRule_state(t *testing.T) {
 	now2 := time.Now()
 	state.Add(StateEntry{At: now2})
 
-	e = state.getLast()
+	e = state.GetLast()
 	if e.At != now2 {
 		t.Fatalf("expected entry at %v to be equal to %v",
 			e.At, now2)
 	}
 
-	if len(state.getAll()) != 2 {
+	if len(state.GetAll()) != 2 {
 		t.Fatalf("expected for state to have 2 entries only; got %d",
-			len(state.getAll()),
+			len(state.GetAll()),
 		)
 	}
 
@@ -63,15 +63,15 @@ func TestRule_state(t *testing.T) {
 		state.Add(StateEntry{At: last})
 	}
 
-	e = state.getLast()
+	e = state.GetLast()
 	if e.At != last {
 		t.Fatalf("expected entry at %v to be equal to %v",
 			e.At, last)
 	}
 
-	if len(state.getAll()) != stateEntriesN {
+	if len(state.GetAll()) != stateEntriesN {
 		t.Fatalf("expected for state to have %d entries only; got %d",
-			stateEntriesN, len(state.getAll()),
+			stateEntriesN, len(state.GetAll()),
 		)
 	}
 }
@@ -91,8 +91,8 @@ func TestRule_stateConcurrent(t *testing.T) {
 			defer wg.Done()
 			for i := 0; i < iterations; i++ {
 				state.Add(StateEntry{At: time.Now()})
-				state.getAll()
-				state.getLast()
+				state.GetAll()
+				state.GetLast()
 			}
 		}()
 	}

@@ -31,9 +31,10 @@ func TestHandler(t *testing.T) {
 		State: rule.NewRuleState(10),
 	}
 	g := &rule.Group{
-		Name:  "group",
-		Rules: []rule.Rule{ar, rr},
+		Name: "group",
 	}
+	g.Rules = append(g.Rules, ar)
+	g.Rules = append(g.Rules, rr)
 	m := &manager{groups: make(map[uint64]*rule.Group)}
 	m.groups[0] = g
 	rh := &requestHandler{m: m}
@@ -71,22 +72,22 @@ func TestHandler(t *testing.T) {
 	})
 
 	t.Run("/vmalert/rule", func(t *testing.T) {
-		a := ar.ToAPI()
+		a := ruleToAPI(ar)
 		getResp(ts.URL+"/vmalert/"+a.WebLink(), nil, 200)
-		r := rr.ToAPI()
+		r := ruleToAPI(rr)
 		getResp(ts.URL+"/vmalert/"+r.WebLink(), nil, 200)
 	})
 	t.Run("/vmalert/alert", func(t *testing.T) {
-		alerts := ar.AlertsToAPI()
+		alerts := ruleToAPIAlert(ar)
 		for _, a := range alerts {
 			getResp(ts.URL+"/vmalert/"+a.WebLink(), nil, 200)
 		}
 	})
 	t.Run("/vmalert/rule?badParam", func(t *testing.T) {
-		params := fmt.Sprintf("?%s=0&%s=1", rule.ParamGroupID, rule.ParamRuleID)
+		params := fmt.Sprintf("?%s=0&%s=1", paramGroupID, paramRuleID)
 		getResp(ts.URL+"/vmalert/rule"+params, nil, 404)
 
-		params = fmt.Sprintf("?%s=1&%s=0", rule.ParamGroupID, rule.ParamRuleID)
+		params = fmt.Sprintf("?%s=1&%s=0", paramGroupID, paramRuleID)
 		getResp(ts.URL+"/vmalert/rule"+params, nil, 404)
 	})
 
@@ -104,14 +105,14 @@ func TestHandler(t *testing.T) {
 		}
 	})
 	t.Run("/api/v1/alert?alertID&groupID", func(t *testing.T) {
-		expAlert := ar.NewAlertAPI(*ar.Alerts[0])
-		alert := &rule.APIAlert{}
+		expAlert := newAlertAPI(ar, *ar.Alerts[0])
+		alert := &apiAlert{}
 		getResp(ts.URL+"/"+expAlert.APILink(), alert, 200)
 		if !reflect.DeepEqual(alert, expAlert) {
 			t.Errorf("expected %v is equal to %v", alert, expAlert)
 		}
 
-		alert = &rule.APIAlert{}
+		alert = &apiAlert{}
 		getResp(ts.URL+"/vmalert/"+expAlert.APILink(), alert, 200)
 		if !reflect.DeepEqual(alert, expAlert) {
 			t.Errorf("expected %v is equal to %v", alert, expAlert)
@@ -119,16 +120,16 @@ func TestHandler(t *testing.T) {
 	})
 
 	t.Run("/api/v1/alert?badParams", func(t *testing.T) {
-		params := fmt.Sprintf("?%s=0&%s=1", rule.ParamGroupID, rule.ParamAlertID)
+		params := fmt.Sprintf("?%s=0&%s=1", paramGroupID, paramAlertID)
 		getResp(ts.URL+"/api/v1/alert"+params, nil, 404)
 		getResp(ts.URL+"/vmalert/api/v1/alert"+params, nil, 404)
 
-		params = fmt.Sprintf("?%s=1&%s=0", rule.ParamGroupID, rule.ParamAlertID)
+		params = fmt.Sprintf("?%s=1&%s=0", paramGroupID, paramAlertID)
 		getResp(ts.URL+"/api/v1/alert"+params, nil, 404)
 		getResp(ts.URL+"/vmalert/api/v1/alert"+params, nil, 404)
 
 		// bad request, alertID is missing
-		params = fmt.Sprintf("?%s=1", rule.ParamGroupID)
+		params = fmt.Sprintf("?%s=1", paramGroupID)
 		getResp(ts.URL+"/api/v1/alert"+params, nil, 400)
 		getResp(ts.URL+"/vmalert/api/v1/alert"+params, nil, 400)
 	})

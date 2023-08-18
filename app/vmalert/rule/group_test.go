@@ -179,7 +179,7 @@ func TestUpdateWith(t *testing.T) {
 				if got.ID() != want.ID() {
 					t.Fatalf("expected to have rule %q; got %q", want, got)
 				}
-				if err := compareRules(t, got, want); err != nil {
+				if err := CompareRules(t, got, want); err != nil {
 					t.Fatalf("comparison error: %s", err)
 				}
 			}
@@ -319,13 +319,13 @@ func TestGetStaleSeries(t *testing.T) {
 	e := &Executor{
 		PreviouslySentSeriesToRW: make(map[uint64]map[string][]prompbmarshal.Label),
 	}
-	f := func(rule Rule, labels, expLabels [][]prompbmarshal.Label) {
+	f := func(r rule, labels, expLabels [][]prompbmarshal.Label) {
 		t.Helper()
 		var tss []prompbmarshal.TimeSeries
 		for _, l := range labels {
 			tss = append(tss, newTimeSeriesPB([]float64{1}, []int64{ts.Unix()}, l))
 		}
-		staleS := e.getStaleSeries(rule, tss, ts)
+		staleS := e.getStaleSeries(r, tss, ts)
 		if staleS == nil && expLabels == nil {
 			return
 		}
@@ -407,7 +407,7 @@ func TestPurgeStaleSeries(t *testing.T) {
 	labels := toPromLabels(t, "__name__", "job:foo", "job", "foo")
 	tss := []prompbmarshal.TimeSeries{newTimeSeriesPB([]float64{1}, []int64{ts.Unix()}, labels)}
 
-	f := func(curRules, newRules, expStaleRules []Rule) {
+	f := func(curRules, newRules, expStaleRules []rule) {
 		t.Helper()
 		e := &Executor{
 			PreviouslySentSeriesToRW: make(map[uint64]map[string][]prompbmarshal.Label),
@@ -435,28 +435,28 @@ func TestPurgeStaleSeries(t *testing.T) {
 	f(nil, nil, nil)
 	f(
 		nil,
-		[]Rule{&AlertingRule{RuleID: 1}},
+		[]rule{&AlertingRule{RuleID: 1}},
 		nil,
 	)
 	f(
-		[]Rule{&AlertingRule{RuleID: 1}},
+		[]rule{&AlertingRule{RuleID: 1}},
 		nil,
 		nil,
 	)
 	f(
-		[]Rule{&AlertingRule{RuleID: 1}},
-		[]Rule{&AlertingRule{RuleID: 2}},
+		[]rule{&AlertingRule{RuleID: 1}},
+		[]rule{&AlertingRule{RuleID: 2}},
 		nil,
 	)
 	f(
-		[]Rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
-		[]Rule{&AlertingRule{RuleID: 2}},
-		[]Rule{&AlertingRule{RuleID: 2}},
+		[]rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
+		[]rule{&AlertingRule{RuleID: 2}},
+		[]rule{&AlertingRule{RuleID: 2}},
 	)
 	f(
-		[]Rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
-		[]Rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
-		[]Rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
+		[]rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
+		[]rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
+		[]rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
 	)
 }
 
@@ -563,23 +563,6 @@ func TestCloseWithEvalInterruption(t *testing.T) {
 	}
 }
 
-func TestUrlValuesToStrings(t *testing.T) {
-	mapQueryParams := map[string][]string{
-		"param1": {"param1"},
-		"param2": {"anotherparam"},
-	}
-	expectedRes := []string{"param1=param1", "param2=anotherparam"}
-	res := urlValuesToStrings(mapQueryParams)
-
-	if len(res) != len(expectedRes) {
-		t.Errorf("Expected length %d, but got %d", len(expectedRes), len(res))
-	}
-	for ind, val := range expectedRes {
-		if val != res[ind] {
-			t.Errorf("Expected %v; but got %v", val, res[ind])
-		}
-	}
-}
 func TestRangeIterator(t *testing.T) {
 	testCases := []struct {
 		ri     rangeIterator

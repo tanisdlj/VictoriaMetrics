@@ -80,7 +80,7 @@ func TestRecordingRule_Exec(t *testing.T) {
 			fq.Add(tc.metrics...)
 			tc.rule.q = fq
 			tc.rule.State = NewRuleState(10)
-			tss, err := tc.rule.Exec(context.TODO(), time.Now(), 0)
+			tss, err := tc.rule.exec(context.TODO(), time.Now(), 0)
 			if err != nil {
 				t.Fatalf("unexpected Exec err: %s", err)
 			}
@@ -161,7 +161,7 @@ func TestRecordingRule_ExecRange(t *testing.T) {
 			fq := &datasource.FakeQuerier{}
 			fq.Add(tc.metrics...)
 			tc.rule.q = fq
-			tss, err := tc.rule.ExecRange(context.TODO(), time.Now(), time.Now())
+			tss, err := tc.rule.execRange(context.TODO(), time.Now(), time.Now())
 			if err != nil {
 				t.Fatalf("unexpected Exec err: %s", err)
 			}
@@ -206,7 +206,7 @@ func TestRecordingRuleLimit(t *testing.T) {
 		fq := &datasource.FakeQuerier{}
 		fq.Add(testMetrics...)
 		rule.q = fq
-		_, err = rule.Exec(context.TODO(), timestamp, testCase.limit)
+		_, err = rule.exec(context.TODO(), timestamp, testCase.limit)
 		if err != nil && !strings.EqualFold(err.Error(), testCase.err) {
 			t.Fatal(err)
 		}
@@ -226,7 +226,7 @@ func TestRecordingRule_ExecNegative(t *testing.T) {
 	expErr := "connection reset by peer"
 	fq.SetErr(errors.New(expErr))
 	rr.q = fq
-	_, err := rr.Exec(context.TODO(), time.Now(), 0)
+	_, err := rr.exec(context.TODO(), time.Now(), 0)
 	if err == nil {
 		t.Fatalf("expected to get err; got nil")
 	}
@@ -241,7 +241,7 @@ func TestRecordingRule_ExecNegative(t *testing.T) {
 	fq.Add(metricWithValueAndLabels(t, 1, "__name__", "foo", "job", "foo"))
 	fq.Add(metricWithValueAndLabels(t, 2, "__name__", "foo", "job", "bar"))
 
-	_, err = rr.Exec(context.TODO(), time.Now(), 0)
+	_, err = rr.exec(context.TODO(), time.Now(), 0)
 	if err == nil {
 		t.Fatalf("expected to get err; got nil")
 	}

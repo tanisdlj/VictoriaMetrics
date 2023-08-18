@@ -29,25 +29,25 @@ type manager struct {
 	groups   map[uint64]*rule.Group
 }
 
-// RuleAPI generates APIRule object from alert by its ID(hash)
-func (m *manager) RuleAPI(gID, rID uint64) (rule.APIRule, error) {
+// ruleAPI generates apiRule object from alert by its ID(hash)
+func (m *manager) ruleAPI(gID, rID uint64) (apiRule, error) {
 	m.groupsMu.RLock()
 	defer m.groupsMu.RUnlock()
 
 	g, ok := m.groups[gID]
 	if !ok {
-		return rule.APIRule{}, fmt.Errorf("can't find group with id %d", gID)
+		return apiRule{}, fmt.Errorf("can't find group with id %d", gID)
 	}
 	for _, rule := range g.Rules {
 		if rule.ID() == rID {
-			return rule.ToAPI(), nil
+			return ruleToAPI(rule), nil
 		}
 	}
-	return rule.APIRule{}, fmt.Errorf("can't find rule with id %d in group %q", rID, g.Name)
+	return apiRule{}, fmt.Errorf("can't find rule with id %d in group %q", rID, g.Name)
 }
 
-// AlertAPI generates APIAlert object from alert by its ID(hash)
-func (m *manager) AlertAPI(gID, aID uint64) (*rule.APIAlert, error) {
+// alertAPI generates apiAlert object from alert by its ID(hash)
+func (m *manager) alertAPI(gID, aID uint64) (*apiAlert, error) {
 	m.groupsMu.RLock()
 	defer m.groupsMu.RUnlock()
 
@@ -60,7 +60,7 @@ func (m *manager) AlertAPI(gID, aID uint64) (*rule.APIAlert, error) {
 		if !ok {
 			continue
 		}
-		if apiAlert := ar.AlertAPI(aID); apiAlert != nil {
+		if apiAlert := alertAPI(ar, aID); apiAlert != nil {
 			return apiAlert, nil
 		}
 	}

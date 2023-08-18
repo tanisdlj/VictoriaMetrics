@@ -125,6 +125,7 @@ func TestManagerUpdate(t *testing.T) {
 		initPath   string
 		updatePath string
 		want       []*rule.Group
+		wantRule   map[string][]*rule.AlertingRule
 	}{
 		{
 			name:       "update good rules",
@@ -136,19 +137,16 @@ func TestManagerUpdate(t *testing.T) {
 					Name:     "duplicatedGroupDiffFiles",
 					Type:     config.NewPrometheusType(),
 					Interval: defaultEvalInterval,
-					Rules: []rule.Rule{
-						&rule.AlertingRule{
-							Name:   "VMRows",
-							Expr:   "vm_rows > 0",
-							For:    5 * time.Minute,
-							Labels: map[string]string{"dc": "gcp", "label": "bar"},
-							Annotations: map[string]string{
-								"summary":     "{{ $value }}",
-								"description": "{{$labels}}",
-							},
-						},
-					},
 				},
+			},
+			wantRule: map[string][]*rule.AlertingRule{"duplicatedGroupDiffFiles": {{Name: "duplicatedGroupDiffFiles",
+				Expr:   "vm_rows > 0",
+				For:    5 * time.Minute,
+				Labels: map[string]string{"dc": "gcp", "label": "bar"},
+				Annotations: map[string]string{
+					"summary":     "{{ $value }}",
+					"description": "{{$labels}}",
+				}}},
 			},
 		},
 		{
@@ -160,18 +158,16 @@ func TestManagerUpdate(t *testing.T) {
 					File:     "config/testdata/rules/rules0-good.rules",
 					Name:     "groupGorSingleAlert",
 					Type:     config.NewPrometheusType(),
-					Rules:    []rule.Rule{VMRows},
 					Interval: defaultEvalInterval,
 				},
 				{
 					File:     "config/testdata/rules/rules0-good.rules",
 					Interval: defaultEvalInterval,
 					Type:     config.NewPrometheusType(),
-					Name:     "TestGroup", Rules: []rule.Rule{
-						Conns,
-						ExampleAlertAlwaysFiring,
-					}},
+					Name:     "TestGroup",
+				},
 			},
+			wantRule: map[string][]*rule.AlertingRule{"groupGorSingleAlert": {VMRows}, "TestGroup": {Conns, ExampleAlertAlwaysFiring}},
 		},
 		{
 			name:       "update with one bad rule file",
@@ -183,18 +179,15 @@ func TestManagerUpdate(t *testing.T) {
 					Name:     "groupGorSingleAlert",
 					Type:     config.NewPrometheusType(),
 					Interval: defaultEvalInterval,
-					Rules:    []rule.Rule{VMRows},
 				},
 				{
 					File:     "config/testdata/rules/rules0-good.rules",
 					Interval: defaultEvalInterval,
 					Name:     "TestGroup",
 					Type:     config.NewPrometheusType(),
-					Rules: []rule.Rule{
-						Conns,
-						ExampleAlertAlwaysFiring,
-					}},
+				},
 			},
+			wantRule: map[string][]*rule.AlertingRule{"groupGorSingleAlert": {VMRows}, "TestGroup": {Conns, ExampleAlertAlwaysFiring}},
 		},
 		{
 			name:       "update empty dir rules from 0 to 2 groups",
@@ -206,18 +199,15 @@ func TestManagerUpdate(t *testing.T) {
 					Name:     "groupGorSingleAlert",
 					Type:     config.NewPrometheusType(),
 					Interval: defaultEvalInterval,
-					Rules:    []rule.Rule{VMRows},
 				},
 				{
 					File:     "config/testdata/rules/rules0-good.rules",
 					Interval: defaultEvalInterval,
 					Type:     config.NewPrometheusType(),
-					Name:     "TestGroup", Rules: []rule.Rule{
-						Conns,
-						ExampleAlertAlwaysFiring,
-					},
+					Name:     "TestGroup",
 				},
 			},
+			wantRule: map[string][]*rule.AlertingRule{"groupGorSingleAlert": {VMRows}, "TestGroup": {Conns, ExampleAlertAlwaysFiring}},
 		},
 	}
 	for _, tc := range testCases {
@@ -247,12 +237,38 @@ func TestManagerUpdate(t *testing.T) {
 				if !ok {
 					t.Fatalf("expected to have group %q", wantG.Name)
 				}
-				rule.CompareGroups(t, wantG, gotG)
+				compareGroups(t, wantG, gotG, tc.wantRule[wantG.Name])
 			}
 
 			cancel()
 			m.close()
 		})
+	}
+}
+
+func compareGroups(t *testing.T, a, b *rule.Group, wantRules []*rule.AlertingRule) {
+	t.Helper()
+	if a.Name != b.Name {
+		t.Fatalf("expected group name %q; got %q", a.Name, b.Name)
+	}
+	if a.File != b.File {
+		t.Fatalf("expected group %q file name %q; got %q", a.Name, a.File, b.File)
+	}
+	if a.Interval != b.Interval {
+		t.Fatalf("expected group %q interval %v; got %v", a.Name, a.Interval, b.Interval)
+	}
+	if len(wantRules) != len(b.Rules) {
+		t.Fatalf("expected group %s to have %d rules; got: %d",
+			a.Name, len(wantRules), len(b.Rules))
+	}
+	for i, r := range wantRules {
+		got, want := r, b.Rules[i]
+		if a.ID() != b.ID() {
+			t.Fatalf("expected to have rule %q; got %q", want.ID(), got.ID())
+		}
+		if err := rule.CompareRules(t, want, got); err != nil {
+			t.Fatalf("comparison error: %s", err)
+		}
 	}
 }
 

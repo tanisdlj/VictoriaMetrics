@@ -263,7 +263,7 @@ func getAlertURLGenerator(externalURL *url.URL, externalAlertSource string, vali
 	if externalAlertSource == "" {
 		return func(a notifier.Alert) string {
 			gID, aID := strconv.FormatUint(a.GroupID, 10), strconv.FormatUint(a.ID, 10)
-			return fmt.Sprintf("%s/vmalert/alert?%s=%s&%s=%s", externalURL, rule.ParamGroupID, gID, rule.ParamAlertID, aID)
+			return fmt.Sprintf("%s/vmalert/alert?%s=%s&%s=%s", externalURL, paramGroupID, gID, paramAlertID, aID)
 		}, nil
 	}
 	if validateTemplate {

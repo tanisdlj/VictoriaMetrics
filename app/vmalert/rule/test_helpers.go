@@ -11,34 +11,8 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/prompbmarshal"
 )
 
-// CompareGroups is a test helper func for other tests
-func CompareGroups(t *testing.T, a, b *Group) {
-	t.Helper()
-	if a.Name != b.Name {
-		t.Fatalf("expected group name %q; got %q", a.Name, b.Name)
-	}
-	if a.File != b.File {
-		t.Fatalf("expected group %q file name %q; got %q", a.Name, a.File, b.File)
-	}
-	if a.Interval != b.Interval {
-		t.Fatalf("expected group %q interval %v; got %v", a.Name, a.Interval, b.Interval)
-	}
-	if len(a.Rules) != len(b.Rules) {
-		t.Fatalf("expected group %s to have %d rules; got: %d",
-			a.Name, len(a.Rules), len(b.Rules))
-	}
-	for i, r := range a.Rules {
-		got, want := r, b.Rules[i]
-		if a.ID() != b.ID() {
-			t.Fatalf("expected to have rule %q; got %q", want.ID(), got.ID())
-		}
-		if err := compareRules(t, want, got); err != nil {
-			t.Fatalf("comparison error: %s", err)
-		}
-	}
-}
-
-func compareRules(t *testing.T, a, b Rule) error {
+// CompareRules is a test helper func for other tests
+func CompareRules(t *testing.T, a, b rule) error {
 	t.Helper()
 	switch v := a.(type) {
 	case *AlertingRule:
