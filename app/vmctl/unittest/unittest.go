@@ -28,7 +28,6 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/fs"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/httpserver"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/logger"
-	"github.com/VictoriaMetrics/VictoriaMetrics/lib/prompbmarshal"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/promutils"
 	"github.com/VictoriaMetrics/metrics"
 )
@@ -311,18 +310,11 @@ func (tg *testGroup) test(evalInterval time.Duration, groupOrderMap map[string]i
 		groups = append(groups, ng)
 	}
 
-	e := &rule.Executor{
-		Rw:                       rw,
-		Notifiers:                func() []notifier.Notifier { return nil },
-		PreviouslySentSeriesToRW: make(map[uint64]map[string][]prompbmarshal.Label),
-	}
-
 	evalIndex := 0
 	maxEvalTime := testStartTime.Add(tg.maxEvalTime())
 	for ts := testStartTime; ts.Before(maxEvalTime) || ts.Equal(maxEvalTime); ts = ts.Add(evalInterval) {
 		for _, g := range groups {
-			resolveDuration := rule.GetResolveDuration(g.Interval, 0, 0)
-			errs := e.ExecConcurrently(context.Background(), g.Rules, ts, g.Concurrency, resolveDuration, g.Limit)
+			errs := g.ExecOnce(context.Background(), func() []notifier.Notifier { return nil }, rw, ts)
 			for err := range errs {
 				if err != nil {
 					checkErrs = append(checkErrs, fmt.Errorf("\nfailed to exec group: %q, time: %s, err: %w", g.Name,

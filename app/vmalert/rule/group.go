@@ -180,8 +180,8 @@ func (g *Group) ID() uint64 {
 	return hash.Sum64()
 }
 
-// Restore restores alerts state for group rules
-func (g *Group) Restore(ctx context.Context, qb datasource.QuerierBuilder, ts time.Time, lookback time.Duration) error {
+// restore restores alerts state for group rules
+func (g *Group) restore(ctx context.Context, qb datasource.QuerierBuilder, ts time.Time, lookback time.Duration) error {
 	for _, rule := range g.Rules {
 		ar, ok := rule.(*AlertingRule)
 		if !ok {
@@ -197,7 +197,7 @@ func (g *Group) Restore(ctx context.Context, qb datasource.QuerierBuilder, ts ti
 			Headers:            g.Headers,
 			Debug:              ar.Debug,
 		})
-		if err := ar.Restore(ctx, q, ts, lookback); err != nil {
+		if err := ar.restore(ctx, q, ts, lookback); err != nil {
 			return fmt.Errorf("error while restoring rule %q: %w", rule, err)
 		}
 	}
@@ -314,7 +314,7 @@ func (g *Group) Start(ctx context.Context, nts func() []notifier.Notifier, rw re
 		}
 	}
 
-	e := &Executor{
+	e := &executor{
 		Rw:                       rw,
 		Notifiers:                nts,
 		notifierHeaders:          g.NotifierHeaders,
@@ -336,8 +336,8 @@ func (g *Group) Start(ctx context.Context, nts func() []notifier.Notifier, rw re
 			return
 		}
 
-		resolveDuration := GetResolveDuration(g.Interval, *resendDelay, *maxResolveDuration)
-		errs := e.ExecConcurrently(ctx, g.Rules, ts, g.Concurrency, resolveDuration, g.Limit)
+		resolveDuration := getResolveDuration(g.Interval, *resendDelay, *maxResolveDuration)
+		errs := e.execConcurrently(ctx, g.Rules, ts, g.Concurrency, resolveDuration, g.Limit)
 		for err := range errs {
 			if err != nil {
 				logger.Errorf("group %q: %s", g.Name, err)
@@ -361,7 +361,7 @@ func (g *Group) Start(ctx context.Context, nts func() []notifier.Notifier, rw re
 	// restore the rules state after the first evaluation
 	// so only active alerts can be restored.
 	if rr != nil {
-		err := g.Restore(ctx, rr, evalTS, *remoteReadLookBack)
+		err := g.restore(ctx, rr, evalTS, *remoteReadLookBack)
 		if err != nil {
 			logger.Errorf("error while restoring ruleState for group %q: %s", g.Name, err)
 		}
@@ -464,6 +464,21 @@ func (g *Group) Replay(start, end time.Time, rw remotewrite.RWClient, maxDataPoi
 	return total
 }
 
+// ExecOnce evaluates all the rules under group for once with given timestamp.
+func (g *Group) ExecOnce(ctx context.Context, nts func() []notifier.Notifier, rw remotewrite.RWClient, evalTS time.Time) chan error {
+	e := &executor{
+		Rw:                       rw,
+		Notifiers:                nts,
+		notifierHeaders:          g.NotifierHeaders,
+		PreviouslySentSeriesToRW: make(map[uint64]map[string][]prompbmarshal.Label),
+	}
+	if len(g.Rules) < 1 {
+		return nil
+	}
+	resolveDuration := getResolveDuration(g.Interval, *resendDelay, *maxResolveDuration)
+	return e.execConcurrently(ctx, g.Rules, evalTS, g.Concurrency, resolveDuration, g.Limit)
+}
+
 func replayRule(r rule, start, end time.Time, rw remotewrite.RWClient, replayRuleRetryAttempts int) (int, error) {
 	var err error
 	var tss []prompbmarshal.TimeSeries
@@ -517,9 +532,9 @@ func (ri *rangeIterator) next() bool {
 	return true
 }
 
-// GetResolveDuration returns the duration after which firing alert
+// getResolveDuration returns the duration after which firing alert
 // can be considered as resolved.
-func GetResolveDuration(groupInterval, delta, maxDuration time.Duration) time.Duration {
+func getResolveDuration(groupInterval, delta, maxDuration time.Duration) time.Duration {
 	if groupInterval > delta {
 		delta = groupInterval
 	}
@@ -530,8 +545,8 @@ func GetResolveDuration(groupInterval, delta, maxDuration time.Duration) time.Du
 	return resolveDuration
 }
 
-// Executor contains group's notify and rw configs
-type Executor struct {
+// executor contains group's notify and rw configs
+type executor struct {
 	Notifiers       func() []notifier.Notifier
 	notifierHeaders map[string]string
 
@@ -545,8 +560,8 @@ type Executor struct {
 	PreviouslySentSeriesToRW map[uint64]map[string][]prompbmarshal.Label
 }
 
-// ExecConcurrently executes rules concurrently if concurrency>1
-func (e *Executor) ExecConcurrently(ctx context.Context, rules []rule, ts time.Time, concurrency int, resolveDuration time.Duration, limit int) chan error {
+// execConcurrently executes rules concurrently if concurrency>1
+func (e *executor) execConcurrently(ctx context.Context, rules []rule, ts time.Time, concurrency int, resolveDuration time.Duration, limit int) chan error {
 	res := make(chan error, len(rules))
 	if concurrency == 1 {
 		// fast path
@@ -585,7 +600,7 @@ var (
 	remoteWriteTotal  = metrics.NewCounter(`vmalert_remotewrite_total`)
 )
 
-func (e *Executor) exec(ctx context.Context, r rule, ts time.Time, resolveDuration time.Duration, limit int) error {
+func (e *executor) exec(ctx context.Context, r rule, ts time.Time, resolveDuration time.Duration, limit int) error {
 	execTotal.Inc()
 
 	tss, err := r.exec(ctx, ts, limit)
@@ -647,7 +662,7 @@ func (e *Executor) exec(ctx context.Context, r rule, ts time.Time, resolveDurati
 }
 
 // getStaledSeries checks whether there are stale series from previously sent ones.
-func (e *Executor) getStaleSeries(r rule, tss []prompbmarshal.TimeSeries, timestamp time.Time) []prompbmarshal.TimeSeries {
+func (e *executor) getStaleSeries(r rule, tss []prompbmarshal.TimeSeries, timestamp time.Time) []prompbmarshal.TimeSeries {
 	ruleLabels := make(map[string][]prompbmarshal.Label, len(tss))
 	for _, ts := range tss {
 		// convert labels to strings so we can compare with previously sent series
@@ -679,7 +694,7 @@ func (e *Executor) getStaleSeries(r rule, tss []prompbmarshal.TimeSeries, timest
 // in the given activeRules list. The method is used when the list
 // of loaded rules has changed and executor has to remove
 // references to non-existing rules.
-func (e *Executor) purgeStaleSeries(activeRules []rule) {
+func (e *executor) purgeStaleSeries(activeRules []rule) {
 	newPreviouslySentSeriesToRW := make(map[uint64]map[string][]prompbmarshal.Label)
 
 	e.previouslySentSeriesToRWMu.Lock()

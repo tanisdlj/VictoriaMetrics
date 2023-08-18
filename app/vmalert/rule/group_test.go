@@ -306,7 +306,7 @@ func TestResolveDuration(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%v-%v-%v", tc.groupInterval, tc.expected, tc.maxDuration), func(t *testing.T) {
-			got := GetResolveDuration(tc.groupInterval, tc.resendDelay, tc.maxDuration)
+			got := getResolveDuration(tc.groupInterval, tc.resendDelay, tc.maxDuration)
 			if got != tc.expected {
 				t.Errorf("expected to have %v; got %v", tc.expected, got)
 			}
@@ -316,7 +316,7 @@ func TestResolveDuration(t *testing.T) {
 
 func TestGetStaleSeries(t *testing.T) {
 	ts := time.Now()
-	e := &Executor{
+	e := &executor{
 		PreviouslySentSeriesToRW: make(map[uint64]map[string][]prompbmarshal.Label),
 	}
 	f := func(r rule, labels, expLabels [][]prompbmarshal.Label) {
@@ -409,7 +409,7 @@ func TestPurgeStaleSeries(t *testing.T) {
 
 	f := func(curRules, newRules, expStaleRules []rule) {
 		t.Helper()
-		e := &Executor{
+		e := &executor{
 			PreviouslySentSeriesToRW: make(map[uint64]map[string][]prompbmarshal.Label),
 		}
 		// seed executor with series for
@@ -468,7 +468,7 @@ func TestFaultyNotifier(t *testing.T) {
 	r.q = fq
 
 	fn := &notifier.FakeNotifier{}
-	e := &Executor{
+	e := &executor{
 		Notifiers: func() []notifier.Notifier {
 			return []notifier.Notifier{
 				&notifier.FaultyNotifier{},
@@ -509,7 +509,7 @@ func TestFaultyRW(t *testing.T) {
 		q:     fq,
 	}
 
-	e := &Executor{
+	e := &executor{
 		Rw:                       &remotewrite.Client{},
 		PreviouslySentSeriesToRW: make(map[uint64]map[string][]prompbmarshal.Label),
 	}

@@ -549,10 +549,10 @@ func alertForToTimeSeries(a *notifier.Alert, timestamp int64) prompbmarshal.Time
 	return newTimeSeries([]float64{float64(a.ActiveAt.Unix())}, []int64{timestamp}, labels)
 }
 
-// Restore restores the value of ActiveAt field for active alerts,
+// restore restores the value of ActiveAt field for active alerts,
 // based on previously written time series `alertForStateMetricName`.
 // Only rules with For > 0 can be restored.
-func (ar *AlertingRule) Restore(ctx context.Context, q datasource.Querier, ts time.Time, lookback time.Duration) error {
+func (ar *AlertingRule) restore(ctx context.Context, q datasource.Querier, ts time.Time, lookback time.Duration) error {
 	if ar.For < 1 {
 		return nil
 	}
