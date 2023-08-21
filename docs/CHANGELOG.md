@@ -25,7 +25,8 @@ The following `tip` changes can be tested by building VictoriaMetrics components
 ## tip
 
 * FEATURE: [vmbackup](https://docs.victoriametrics.com/vmbackup.html): add support for server-side copy of existing backups. See [these docs](https://docs.victoriametrics.com/vmbackup.html#server-side-copy-of-the-existing-backup) for details.
-* FEATURE: [vmagent](https://docs.victoriametrics.com/vmagent.html): properly handle `unexpected EOF` error when parsing metrics in Prometheus exposition format. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4817). 
+* FEATURE: [vmagent](https://docs.victoriametrics.com/vmagent.html): properly handle `unexpected EOF` error when parsing metrics in Prometheus exposition format. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4817).
+* FEATURE: [vmagent](https://docs.victoriametrics.com/vmagent.html): restart only updated stream aggregation configs on [config reload](https://docs.victoriametrics.com/vmagent.html#configuration-update). See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4810).
 * FEATURE: [vmui](https://docs.victoriametrics.com/#vmui): make the warning message more noticeable for text fields. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4848).
 * FEATURE: [vmui](https://docs.victoriametrics.com/#vmui): add button for auto-formatting PromQL/MetricsQL queries. See [this issue](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/4681). Thanks to @aramattamara for the [pull request](https://github.com/VictoriaMetrics/VictoriaMetrics/pull/4694).
 
