@@ -443,7 +443,7 @@ func (ar *AlertingRule) toTimeSeries(timestamp int64) []prompbmarshal.TimeSeries
 // updateWith copies all significant fields.
 // alerts state isn't copied since
 // it should be updated in next 2 Execs
-func (ar *AlertingRule) updateWith(r rule) error {
+func (ar *AlertingRule) updateWith(r Rule) error {
 	nr, ok := r.(*AlertingRule)
 	if !ok {
 		return fmt.Errorf("BUG: attempt to update alerting rule with wrong type %#v", r)

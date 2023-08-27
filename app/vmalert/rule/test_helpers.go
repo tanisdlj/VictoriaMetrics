@@ -12,7 +12,7 @@ import (
 )
 
 // CompareRules is a test helper func for other tests
-func CompareRules(t *testing.T, a, b rule) error {
+func CompareRules(t *testing.T, a, b Rule) error {
 	t.Helper()
 	switch v := a.(type) {
 	case *AlertingRule:

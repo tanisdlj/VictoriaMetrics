@@ -64,7 +64,7 @@ func (aa *apiAlert) APILink() string {
 		paramGroupID, aa.GroupID, paramAlertID, aa.ID)
 }
 
-// apiGroup represents Group for WEB view
+// apiGroup represents Group for web view
 // https://github.com/prometheus/compliance/blob/main/alert_generator/specification.md#get-apiv1rules
 type apiGroup struct {
 	// Name is the group name as present in the config
@@ -102,7 +102,7 @@ type groupAlerts struct {
 	Alerts []*apiAlert
 }
 
-// apiRule represents a Rule for WEB view
+// apiRule represents a Rule for web view
 // see https://github.com/prometheus/compliance/blob/main/alert_generator/specification.md#get-apiv1rules
 type apiRule struct {
 	// State must be one of these under following scenarios
@@ -258,8 +258,8 @@ func ruleToAPIAlert(ar *rule.AlertingRule) []*apiAlert {
 	return alerts
 }
 
-// alertAPI generates apiAlert object from alert by its id(hash)
-func alertAPI(ar *rule.AlertingRule, id uint64) *apiAlert {
+// alertToAPI generates apiAlert object from alert by its id(hash)
+func alertToAPI(ar *rule.AlertingRule, id uint64) *apiAlert {
 	ar.AlertsMu.RLock()
 	defer ar.AlertsMu.RUnlock()
 	a, ok := ar.Alerts[id]
@@ -286,8 +286,8 @@ func newAlertAPI(ar *rule.AlertingRule, a notifier.Alert) *apiAlert {
 		Restored:    a.Restored,
 		Value:       strconv.FormatFloat(a.Value, 'f', -1, 32),
 	}
-	if notifier.AlertURLGeneratorFn != nil {
-		aa.SourceLink = notifier.AlertURLGeneratorFn(a)
+	if alertURLGeneratorFn != nil {
+		aa.SourceLink = alertURLGeneratorFn(a)
 	}
 	if a.State == notifier.StateFiring && !a.KeepFiringSince.IsZero() {
 		aa.Stabilizing = true

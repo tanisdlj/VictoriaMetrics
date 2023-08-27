@@ -60,7 +60,7 @@ func (m *manager) alertAPI(gID, aID uint64) (*apiAlert, error) {
 		if !ok {
 			continue
 		}
-		if apiAlert := alertAPI(ar, aID); apiAlert != nil {
+		if apiAlert := alertToAPI(ar, aID); apiAlert != nil {
 			return apiAlert, nil
 		}
 	}

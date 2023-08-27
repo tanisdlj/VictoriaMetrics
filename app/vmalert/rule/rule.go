@@ -12,18 +12,18 @@ import (
 // Rule represents alerting or recording rule
 // that has unique ID, can be Executed and
 // updated with other Rule.
-type rule interface {
+type Rule interface {
 	// ID returns unique ID that may be used for
 	// identifying this Rule among others.
 	ID() uint64
 	// exec executes the rule with given context at the given timestamp and limit.
 	// returns an err if number of resulting time series exceeds the limit.
 	exec(ctx context.Context, ts time.Time, limit int) ([]prompbmarshal.TimeSeries, error)
-	// ExecRange executes the rule on the given time range.
+	// execRange executes the rule on the given time range.
 	execRange(ctx context.Context, start, end time.Time) ([]prompbmarshal.TimeSeries, error)
 	// updateWith performs modification of current Rule
 	// with fields of the given Rule.
-	updateWith(rule) error
+	updateWith(Rule) error
 	// close performs the shutdown procedures for rule
 	// such as metrics unregister
 	close()

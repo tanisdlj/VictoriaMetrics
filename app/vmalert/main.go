@@ -83,6 +83,8 @@ absolute path to all .tpl files in root.
 	dryRun = flag.Bool("dryRun", false, "Whether to check only config files without running vmalert. The rules file are validated. The -rule flag must be specified.")
 )
 
+var alertURLGeneratorFn notifier.AlertURLGenerator
+
 func main() {
 	// Write flags and help message to stdout, since it is easier to grep or pipe.
 	flag.CommandLine.SetOutput(os.Stdout)
@@ -120,7 +122,7 @@ func main() {
 		logger.Fatalf("failed to init `external.url`: %s", err)
 	}
 
-	alertURLGeneratorFn, err := getAlertURLGenerator(eu, *externalAlertSource, *validateTemplates)
+	alertURLGeneratorFn, err = getAlertURLGenerator(eu, *externalAlertSource, *validateTemplates)
 	if err != nil {
 		logger.Fatalf("failed to init `external.alert.source`: %s", err)
 	}
@@ -155,7 +157,7 @@ func main() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	manager, err := newManager(ctx, alertURLGeneratorFn)
+	manager, err := newManager(ctx)
 	if err != nil {
 		logger.Fatalf("failed to init: %s", err)
 	}
@@ -195,7 +197,7 @@ var (
 	configTimestamp    = metrics.NewCounter(`vmalert_config_last_reload_success_timestamp_seconds`)
 )
 
-func newManager(ctx context.Context, alertURLGeneratorFn notifier.AlertURLGenerator) (*manager, error) {
+func newManager(ctx context.Context) (*manager, error) {
 	q, err := datasource.Init(nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init datasource: %w", err)
@@ -227,9 +229,7 @@ func newManager(ctx context.Context, alertURLGeneratorFn notifier.AlertURLGenera
 	if err != nil {
 		return nil, fmt.Errorf("failed to init remoteWrite: %w", err)
 	}
-	if rw != nil {
-		manager.rw = rw
-	}
+	manager.rw = rw
 
 	rr, err := remoteread.Init()
 	if err != nil {

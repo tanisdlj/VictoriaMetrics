@@ -39,7 +39,7 @@ func TestUnitRule(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		fail := UnitRule(tc.files, tc.disableGroupLabel)
+		fail := UnitTest(tc.files, tc.disableGroupLabel)
 		if fail != tc.failed {
 			t.Fatalf("failed to test %s, expect %t, got %t", tc.name, tc.failed, fail)
 		}

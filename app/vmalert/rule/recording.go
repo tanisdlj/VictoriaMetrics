@@ -194,7 +194,7 @@ func (rr *RecordingRule) toTimeSeries(m datasource.Metric) prompbmarshal.TimeSer
 }
 
 // updateWith copies all significant fields.
-func (rr *RecordingRule) updateWith(r rule) error {
+func (rr *RecordingRule) updateWith(r Rule) error {
 	nr, ok := r.(*RecordingRule)
 	if !ok {
 		return fmt.Errorf("BUG: attempt to update recroding rule with wrong type %#v", r)

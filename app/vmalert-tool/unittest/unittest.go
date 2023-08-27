@@ -47,12 +47,12 @@ var (
 )
 
 const (
-	testStoragePath = "vmctl-unittest"
+	testStoragePath = "vmalert-unittest"
 	testLogLevel    = "ERROR"
 )
 
-// UnitRule runs unittest for files
-func UnitRule(files []string, disableGroupLabel bool) bool {
+// UnitTest runs unittest for files
+func UnitTest(files []string, disableGroupLabel bool) bool {
 	if err := templates.Load([]string{}, true); err != nil {
 		logger.Fatalf("failed to load template: %v", err)
 	}

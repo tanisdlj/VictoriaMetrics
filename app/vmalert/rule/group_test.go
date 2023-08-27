@@ -319,7 +319,7 @@ func TestGetStaleSeries(t *testing.T) {
 	e := &executor{
 		PreviouslySentSeriesToRW: make(map[uint64]map[string][]prompbmarshal.Label),
 	}
-	f := func(r rule, labels, expLabels [][]prompbmarshal.Label) {
+	f := func(r Rule, labels, expLabels [][]prompbmarshal.Label) {
 		t.Helper()
 		var tss []prompbmarshal.TimeSeries
 		for _, l := range labels {
@@ -407,7 +407,7 @@ func TestPurgeStaleSeries(t *testing.T) {
 	labels := toPromLabels(t, "__name__", "job:foo", "job", "foo")
 	tss := []prompbmarshal.TimeSeries{newTimeSeriesPB([]float64{1}, []int64{ts.Unix()}, labels)}
 
-	f := func(curRules, newRules, expStaleRules []rule) {
+	f := func(curRules, newRules, expStaleRules []Rule) {
 		t.Helper()
 		e := &executor{
 			PreviouslySentSeriesToRW: make(map[uint64]map[string][]prompbmarshal.Label),
@@ -435,28 +435,28 @@ func TestPurgeStaleSeries(t *testing.T) {
 	f(nil, nil, nil)
 	f(
 		nil,
-		[]rule{&AlertingRule{RuleID: 1}},
+		[]Rule{&AlertingRule{RuleID: 1}},
 		nil,
 	)
 	f(
-		[]rule{&AlertingRule{RuleID: 1}},
+		[]Rule{&AlertingRule{RuleID: 1}},
 		nil,
 		nil,
 	)
 	f(
-		[]rule{&AlertingRule{RuleID: 1}},
-		[]rule{&AlertingRule{RuleID: 2}},
+		[]Rule{&AlertingRule{RuleID: 1}},
+		[]Rule{&AlertingRule{RuleID: 2}},
 		nil,
 	)
 	f(
-		[]rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
-		[]rule{&AlertingRule{RuleID: 2}},
-		[]rule{&AlertingRule{RuleID: 2}},
+		[]Rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
+		[]Rule{&AlertingRule{RuleID: 2}},
+		[]Rule{&AlertingRule{RuleID: 2}},
 	)
 	f(
-		[]rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
-		[]rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
-		[]rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
+		[]Rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
+		[]Rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
+		[]Rule{&AlertingRule{RuleID: 1}, &AlertingRule{RuleID: 2}},
 	)
 }
 

@@ -4,7 +4,7 @@
     "time"
     "sort"
     "net/http"
-    
+
     "github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/tpl"
     "github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/utils"
     "github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/notifier"

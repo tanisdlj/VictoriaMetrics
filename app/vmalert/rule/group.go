@@ -41,7 +41,7 @@ type Group struct {
 	Mu             sync.RWMutex
 	Name           string
 	File           string
-	Rules          []rule
+	Rules          []Rule
 	Type           config.Type
 	Interval       time.Duration
 	Limit          int
@@ -137,7 +137,7 @@ func NewGroup(cfg config.Group, qb datasource.QuerierBuilder, defaultInterval ti
 		g.NotifierHeaders[h.Key] = h.Value
 	}
 	g.metrics = newGroupMetrics(g)
-	rules := make([]rule, len(cfg.Rules))
+	rules := make([]Rule, len(cfg.Rules))
 	for i, r := range cfg.Rules {
 		var extraLabels map[string]string
 		// apply external labels
@@ -159,7 +159,7 @@ func NewGroup(cfg config.Group, qb datasource.QuerierBuilder, defaultInterval ti
 	return g
 }
 
-func (g *Group) newRule(qb datasource.QuerierBuilder, r config.Rule) rule {
+func (g *Group) newRule(qb datasource.QuerierBuilder, r config.Rule) Rule {
 	if r.Alert != "" {
 		return newAlertingRule(qb, g, r)
 	}
@@ -210,7 +210,7 @@ func (g *Group) restore(ctx context.Context, qb datasource.QuerierBuilder, ts ti
 // in group.Start function.
 // Not thread-safe.
 func (g *Group) updateWith(newGroup *Group) error {
-	rulesRegistry := make(map[uint64]rule)
+	rulesRegistry := make(map[uint64]Rule)
 	for _, nr := range newGroup.Rules {
 		rulesRegistry[nr.ID()] = nr
 	}
@@ -230,7 +230,7 @@ func (g *Group) updateWith(newGroup *Group) error {
 		delete(rulesRegistry, nr.ID())
 	}
 
-	var newRules []rule
+	var newRules []Rule
 	for _, r := range g.Rules {
 		if r == nil {
 			// skip nil rules
@@ -479,7 +479,7 @@ func (g *Group) ExecOnce(ctx context.Context, nts func() []notifier.Notifier, rw
 	return e.execConcurrently(ctx, g.Rules, evalTS, g.Concurrency, resolveDuration, g.Limit)
 }
 
-func replayRule(r rule, start, end time.Time, rw remotewrite.RWClient, replayRuleRetryAttempts int) (int, error) {
+func replayRule(r Rule, start, end time.Time, rw remotewrite.RWClient, replayRuleRetryAttempts int) (int, error) {
 	var err error
 	var tss []prompbmarshal.TimeSeries
 	for i := 0; i < replayRuleRetryAttempts; i++ {
@@ -561,7 +561,7 @@ type executor struct {
 }
 
 // execConcurrently executes rules concurrently if concurrency>1
-func (e *executor) execConcurrently(ctx context.Context, rules []rule, ts time.Time, concurrency int, resolveDuration time.Duration, limit int) chan error {
+func (e *executor) execConcurrently(ctx context.Context, rules []Rule, ts time.Time, concurrency int, resolveDuration time.Duration, limit int) chan error {
 	res := make(chan error, len(rules))
 	if concurrency == 1 {
 		// fast path
@@ -578,7 +578,7 @@ func (e *executor) execConcurrently(ctx context.Context, rules []rule, ts time.T
 		for _, r := range rules {
 			sem <- struct{}{}
 			wg.Add(1)
-			go func(r rule) {
+			go func(r Rule) {
 				res <- e.exec(ctx, r, ts, resolveDuration, limit)
 				<-sem
 				wg.Done()
@@ -600,7 +600,7 @@ var (
 	remoteWriteTotal  = metrics.NewCounter(`vmalert_remotewrite_total`)
 )
 
-func (e *executor) exec(ctx context.Context, r rule, ts time.Time, resolveDuration time.Duration, limit int) error {
+func (e *executor) exec(ctx context.Context, r Rule, ts time.Time, resolveDuration time.Duration, limit int) error {
 	execTotal.Inc()
 
 	tss, err := r.exec(ctx, ts, limit)
@@ -662,7 +662,7 @@ func (e *executor) exec(ctx context.Context, r rule, ts time.Time, resolveDurati
 }
 
 // getStaledSeries checks whether there are stale series from previously sent ones.
-func (e *executor) getStaleSeries(r rule, tss []prompbmarshal.TimeSeries, timestamp time.Time) []prompbmarshal.TimeSeries {
+func (e *executor) getStaleSeries(r Rule, tss []prompbmarshal.TimeSeries, timestamp time.Time) []prompbmarshal.TimeSeries {
 	ruleLabels := make(map[string][]prompbmarshal.Label, len(tss))
 	for _, ts := range tss {
 		// convert labels to strings so we can compare with previously sent series
@@ -694,7 +694,7 @@ func (e *executor) getStaleSeries(r rule, tss []prompbmarshal.TimeSeries, timest
 // in the given activeRules list. The method is used when the list
 // of loaded rules has changed and executor has to remove
 // references to non-existing rules.
-func (e *executor) purgeStaleSeries(activeRules []rule) {
+func (e *executor) purgeStaleSeries(activeRules []Rule) {
 	newPreviouslySentSeriesToRW := make(map[uint64]map[string][]prompbmarshal.Label)
 
 	e.previouslySentSeriesToRWMu.Lock()
